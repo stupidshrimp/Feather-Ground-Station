@@ -235,7 +235,7 @@ class MainWindow(QMainWindow):
 
         try:
             # Fetch mapped joystick angles for transmission
-            mapped_pitch, mapped_roll = self.joystick.update_mapped_angles()
+            mapped_roll, mapped_pitch = self.joystick.get_mapped_angles()
 
             # Prepare CRSF channels for transmission
             channels = [1500] * 16
@@ -290,7 +290,7 @@ class MainWindow(QMainWindow):
             self.rollpitch_osd.setRollPitch(raw_roll, raw_pitch)
 
             # Fetch mapped angles for CRSF transmission
-            mapped_pitch, mapped_roll = self.joystick.update_mapped_angles()
+            mapped_roll, mapped_pitch = self.joystick.get_mapped_angles()
 
             # Prepare CRSF channels for transmission
             channels = [1500] * 16  # Default values for all channels
