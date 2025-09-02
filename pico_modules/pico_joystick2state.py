@@ -145,46 +145,10 @@ class JoystickRateHandler:
         # )
         return self.pitch, self.roll   
     
-    def update_mapped_angles(self):
-        """
-        Update roll and pitch angles based on joystick input rates.
-        Returns roll and pitch in a range of 0 to 2000.
-        """
-        current_time = time.time()
-        delta_time = current_time - self.last_time
-        self.last_time = current_time
-
-        # Cap delta_time to avoid excessive jumps
-        delta_time = min(delta_time, 0.05)  # Max interval of 50ms
-
-        # Get roll and pitch rates
-        roll_rate, pitch_rate = self.read_joystick_input()
-
-        # Integrate rates to calculate angles
-        self.roll += roll_rate * delta_time
-        self.pitch += pitch_rate * delta_time
-
-        # Wrap roll angle to keep it within -180 to 180 degrees
-        if self.roll > 180:
-            self.roll -= 360
-        elif self.roll < -180:
-            self.roll += 360
-
-        # Clamp pitch angle to avoid unrealistic values (optional)
-        self.pitch = max(-90, min(90, self.pitch))  # Assuming pitch range is -90° to 90°
-
-        # Map roll and pitch to the range [0, 2000]
+    def get_mapped_angles(self):
+        """Map the current roll and pitch angles to the range [0, 2000]."""
         roll_mapped = int((self.roll + 180) * (2000 / 360))  # Map from [-180, 180] to [0, 2000]
         pitch_mapped = int((self.pitch + 90) * (2000 / 180))  # Map from [-90, 90] to [0, 2000]
-
-        # Print updated angles
-        #print(
-            #f"Raw Rates: Roll Rate={roll_rate:.2f}, Pitch Rate={pitch_rate:.2f} | "
-            #f"Angles: Roll={self.roll:.2f}°, Pitch={self.pitch:.2f}° | "
-            #f"Mapped: Roll={roll_mapped}, Pitch={pitch_mapped}"
-        #)
-
-        # Return the mapped roll and pitch values
         return roll_mapped, pitch_mapped
 
     def start_listening(self):
@@ -193,7 +157,8 @@ class JoystickRateHandler:
         """
         try:
             while True:
-                self.update_mapped_angles()
+                self.update_angles()
+                self.get_mapped_angles()
                 time.sleep(self.update_interval)
         except KeyboardInterrupt:
             print("\nExiting...")
