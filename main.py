@@ -172,12 +172,13 @@ class MainWindow(QMainWindow):
         widgets.btn_widgets.clicked.connect(self.buttonClick)
         widgets.btn_new.clicked.connect(self.buttonClick)
 
-        # EXTRA LEFT BOX
-        widgets.toggleLeftBox.clicked.connect(lambda: UIFunctions.toggleLeftBox(self, True))
-        widgets.extraCloseColumnBtn.clicked.connect(lambda: UIFunctions.toggleLeftBox(self, True))
-
         # EXTRA RIGHT BOX
         widgets.settingsTopBtn.clicked.connect(lambda: UIFunctions.toggleRightBox(self, True))
+
+        # REMOVE SETTINGS TAB AND ICON
+        widgets.toggleLeftBox.hide()
+        widgets.bottomMenu.hide()
+        widgets.extraLeftBox.hide()
 
         # TOP BUTTONS (Close, Minimize, Maximize)
         widgets.closeAppBtn.clicked.connect(self.close)
