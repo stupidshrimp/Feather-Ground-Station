@@ -10,7 +10,7 @@ classic staggered pattern used on real attitude indicators.
 """
 
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QPainter, QPen, QFont
+from PySide6.QtGui import QPainter, QPen, QFont, QColor
 from PySide6.QtCore import Qt
 
 class RollPitchOSD(QWidget):
@@ -40,6 +40,8 @@ class RollPitchOSD(QWidget):
         MINOR_LEN   = 40    # Half length for short rungs
         GAP_SIZE    = 40    # Gap in the centre
 
+        FADE_ZONE   = 40    # Pixels from top/bottom edge to start fading
+
         center_x = self.width() / 2
         center_y = self.height() / 2
 
@@ -59,9 +61,25 @@ class RollPitchOSD(QWidget):
         start_pitch = int((self._pitch - half_height_deg) / 5) * 5
         end_pitch   = int((self._pitch + half_height_deg) / 5) * 5
 
+        half_height_px = self.height() / 2
+
         for index, pitch_deg in enumerate(range(start_pitch, end_pitch + 5, 5)):
             y = (self._pitch - pitch_deg) * SCALE
             half_len = MAJOR_LEN if index % 2 == 0 else MINOR_LEN
+
+            # Fade rungs near the top and bottom edges so they smoothly
+            # disappear instead of abruptly ending.
+            distance_to_edge = half_height_px - abs(y)
+            if distance_to_edge <= 0:
+                alpha = 0.0
+            elif distance_to_edge < FADE_ZONE:
+                alpha = distance_to_edge / FADE_ZONE
+            else:
+                alpha = 1.0
+            color = QColor(Qt.green)
+            color.setAlphaF(alpha)
+            painter.setPen(QPen(color, 2))
+
 
             # Left and right segments with a gap in the middle
             painter.drawLine(-half_len, y, -GAP_SIZE / 2, y)
