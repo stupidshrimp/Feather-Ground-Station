@@ -414,7 +414,10 @@ class MainWindow(QMainWindow):
         Releases resources when the window is closed.
         """
         self.video_feed.stop()
-        self.crsf_processor.close_serial()  # Ensure serial port is closed
+        if self.crsf_processor:
+            self.crsf_processor.close_serial()  # Ensure serial port is closed
+        if self.joystick:
+            self.joystick.close_serial()
         super().closeEvent(event)
         
 if __name__ == "__main__":
