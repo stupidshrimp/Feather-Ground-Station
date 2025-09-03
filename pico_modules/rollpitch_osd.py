@@ -39,6 +39,7 @@ class RollPitchOSD(QWidget):
         MAJOR_LEN   = 80    # Half length for long rungs
         MINOR_LEN   = 40    # Half length for short rungs
         GAP_SIZE    = 40    # Gap in the centre
+
         FADE_ZONE   = 40    # Pixels from top/bottom edge to start fading
 
         center_x = self.width() / 2
@@ -78,6 +79,7 @@ class RollPitchOSD(QWidget):
             color = QColor(Qt.green)
             color.setAlphaF(alpha)
             painter.setPen(QPen(color, 2))
+
 
             # Left and right segments with a gap in the middle
             painter.drawLine(-half_len, y, -GAP_SIZE / 2, y)
