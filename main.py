@@ -28,6 +28,7 @@ from pico_modules.labelsmanager import LabelManager
 # Import the custom OSD module
 from pico_modules.rollpitch_osd import RollPitchOSD
 from pico_modules.altitude_osd import AltitudeOSD
+from pico_modules.airspeed_osd import AirspeedOSD
 
 from config import load_config, save_config
 
@@ -163,8 +164,16 @@ class MainWindow(QMainWindow):
         self.altitude_osd.setAltitude(0.0)
         self.altitude_osd.show()
 
+        # Airspeed OSD placeholder - receives telemetry airspeed values
+        self.airspeed_osd = AirspeedOSD(self.ui.airspeedosd)
+        self.airspeed_osd.resize(self.ui.airspeedosd.size())
+        self.airspeed_osd.setAirspeed(0.0)
+        self.airspeed_osd.show()
+
         # Current altitude placeholder variable; to be updated from telemetry
         self.current_altitude = 0.0
+        # Current airspeed placeholder variable; to be updated from telemetry
+        self.current_airspeed = 0.0
 
 
         # TOGGLE MENU
