@@ -2766,15 +2766,25 @@ background-repeat: no-repeat;</string>
                              <height>21</height>
                             </rect>
                            </property>
-                           <property name="text">
-                            <string>Telemetry Status: 123</string>
-                           </property>
-                          </widget>
-                          <widget class="QWidget" name="rollpitchosd" native="true">
-                           <property name="geometry">
-                            <rect>
-                             <x>149</x>
-                             <y>-1</y>
+                          <property name="text">
+                           <string>Telemetry Status: 123</string>
+                          </property>
+                         </widget>
+                         <widget class="QWidget" name="airspeedosd" native="true">
+                          <property name="geometry">
+                           <rect>
+                            <x>40</x>
+                            <y>100</y>
+                            <width>100</width>
+                            <height>400</height>
+                           </rect>
+                          </property>
+                         </widget>
+                         <widget class="QWidget" name="rollpitchosd" native="true">
+                          <property name="geometry">
+                           <rect>
+                            <x>149</x>
+                            <y>-1</y>
                              <width>481</width>
                              <height>591</height>
                             </rect>
