@@ -66,7 +66,14 @@ class RollPitchOSD(QWidget):
 
         for index, pitch_deg in enumerate(range(start_pitch, end_pitch + 5, 5)):
             y = (self._pitch - pitch_deg) * SCALE
-            half_len = MAJOR_LEN if index % 2 == 0 else MINOR_LEN
+
+            # Make the zero‑degree horizon line span the widget so the real
+            # horizon is more visible. Other rungs keep their alternating
+            # long/short lengths.
+            if pitch_deg == 0:
+                half_len = self.width() / 2
+            else:
+                half_len = MAJOR_LEN if index % 2 == 0 else MINOR_LEN
 
             # Fade rungs near the top and bottom edges so they smoothly
             # disappear instead of abruptly ending.
@@ -82,11 +89,15 @@ class RollPitchOSD(QWidget):
             painter.setPen(QPen(color, 2))
 
 
-            # Left and right segments with a gap in the middle
-            painter.drawLine(-half_len, y, -GAP_SIZE / 2, y)
-            painter.drawLine(GAP_SIZE / 2, y, half_len, y)
+            if pitch_deg == 0:
+                # Draw a continuous line across the centre for the true horizon
+                painter.drawLine(-half_len, y, half_len, y)
+            else:
+                # Left and right segments with a gap in the middle
+                painter.drawLine(-half_len, y, -GAP_SIZE / 2, y)
+                painter.drawLine(GAP_SIZE / 2, y, half_len, y)
 
-            if pitch_deg % 10 == 0:
+            if pitch_deg % 10 == 0 and pitch_deg != 0:
                 painter.save()
                 painter.rotate(self._roll)
                 painter.drawText(half_len + 5, y + 3, f"{pitch_deg}")
