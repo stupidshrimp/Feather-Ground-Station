@@ -104,9 +104,6 @@ class MainWindow(QMainWindow):
 
         self.video_port = self.vtx_cfg.get("port", "")
 
-        # Timers for blinking status indicators
-        self.status_timers = {}
-
         # Initialize CRSFPacketProcessor
         self.crsf_processor = None
         if validate_port("CRSF", self.crsf_cfg.get("port")):
@@ -143,6 +140,7 @@ class MainWindow(QMainWindow):
         self.transmit_timer = QTimer(self)
         self.transmit_timer.timeout.connect(self.transmit_data)
         self.transmit_timer.start(self.crsf_cfg.get("packet_interval", 10))
+
 
         # --------------------------------------------------------------------
         # OSD Overlay Setup - Create and initialize the RollPitchOSD widget
