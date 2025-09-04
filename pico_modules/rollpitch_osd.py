@@ -40,13 +40,13 @@ class RollPitchOSD(QWidget):
         painter.setRenderHint(QPainter.Antialiasing, True)
 
         # -------------------- Tuning Constants -------------------- #
-        SCALE          = 4.0  # Pixels per pitch degree
-        SHRINK_PER_DEG = 2    # Pixels trimmed from half length per degree
-        MIN_LEN        = 20   # Minimum half length for far rungs
-        GAP_SIZE       = 40   # Gap in the centre
+        SCALE         = 4.0  # Pixels per pitch degree
+        GAP_SIZE      = 40   # Gap in the centre
+        FADE_ZONE     = 100  # Pixels from top/bottom edge to start fading
+        CROSS_SIZE    = 10   # Half size of the centre cross
 
-        FADE_ZONE   = 100   # Pixels from top/bottom edge to start fading
-        CROSS_SIZE  = 10    # Half size of the centre cross
+        LONG_FRACTION  = 0.8  # Long rung as fraction of half width
+        SHORT_FRACTION = 0.4  # Short rung as fraction of half width
 
         center_x = self.width() / 2
         center_y = self.height() / 2
@@ -56,9 +56,6 @@ class RollPitchOSD(QWidget):
         painter.translate(center_x, center_y)
         painter.rotate(-self._roll)
 
-        pen = QPen(Qt.green, 2)
-        painter.setPen(pen)
-
         # Determine which pitch rungs are visible.  This lets the ladder
         # appear infinite because we always draw enough lines to cover the
         # widget regardless of the current pitch value.
@@ -67,17 +64,30 @@ class RollPitchOSD(QWidget):
         end_pitch   = int((self._pitch + half_height_deg) / 5) * 5
 
         half_height_px = self.height() / 2
+        half_width = self.width() / 2
+        long_half_len = half_width * LONG_FRACTION
+        short_half_len = half_width * SHORT_FRACTION
+
+        green = QColor(0, 255, 0)
+        orange = QColor(255, 165, 0)
+        red = QColor(255, 0, 0)
+
+        def blend(c1: QColor, c2: QColor, t: float) -> QColor:
+            r = c1.red() + (c2.red() - c1.red()) * t
+            g = c1.green() + (c2.green() - c1.green()) * t
+            b = c1.blue() + (c2.blue() - c1.blue()) * t
+            return QColor(int(r), int(g), int(b))
 
         for pitch_deg in range(start_pitch, end_pitch + 5, 5):
             y = (self._pitch - pitch_deg) * SCALE
 
-            # Make the zero‑degree horizon line span the widget and shrink
-            # other rungs progressively as they move away from centre.
+            # Make the zero‑degree horizon line span the widget and alternate
+            # between long and short rungs away from centre.
+            rung_index = int(abs(pitch_deg) / 5)
             if pitch_deg == 0:
-                half_len = self.width() / 2
+                half_len = half_width
             else:
-                max_half_len = self.width() / 2
-                half_len = max(MIN_LEN, max_half_len - abs(pitch_deg) * SHRINK_PER_DEG)
+                half_len = long_half_len if rung_index % 2 == 1 else short_half_len
 
             # Fade rungs near the top and bottom edges so they smoothly
             # disappear instead of abruptly ending.
@@ -88,7 +98,15 @@ class RollPitchOSD(QWidget):
                 alpha = distance_to_edge / FADE_ZONE
             else:
                 alpha = 1.0
-            color = QColor(Qt.green)
+            if rung_index <= 7:
+                t = rung_index / 7.0
+                color = blend(green, orange, t)
+            elif rung_index <= 14:
+                t = (rung_index - 7) / 7.0
+                color = blend(orange, red, t)
+            else:
+                color = red
+
             color.setAlphaF(alpha)
             painter.setPen(QPen(color, 2))
 
