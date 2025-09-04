@@ -2,10 +2,10 @@
 
 This widget renders a vertical altitude tape similar to those seen on
 primary flight displays. It accepts altitude values in feet and draws a
-scrolling scale with tick marks every 10 ft and numeric labels every 10
-ticks (100 ft) showing values such as ``10`` then ``20`` then ``30``.
-The telemetry source is expected to supply the altitude value; here we
-only provide the visual representation.
+
+scrolling scale with tick marks every 10 ft and a central readout showing
+the current altitude. The telemetry source is expected to supply the
+altitude value; here we only provide the visual representation.
 """
 
 from PySide6.QtWidgets import QWidget
@@ -39,6 +39,7 @@ class AltitudeOSD(QWidget):
         SCALE = 0.5               # Pixels per altitude foot
         TICK_INTERVAL = 10        # Minor tick every 10 ft
         TICKS_PER_LABEL = 10      # Label every 10 ticks (100 ft)
+
         MAJOR_LEN = 20            # Length of major tick in pixels
         MINOR_LEN = 10            # Length of minor tick in pixels
         BOX_HEIGHT = 40           # Height of centre readout box
