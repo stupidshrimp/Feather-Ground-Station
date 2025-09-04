@@ -37,6 +37,7 @@ class CompassOSD(QWidget):
         MAJOR_INTERVAL = 30       # Major tick every 30 deg
         MAJOR_LEN = 15            # Major tick length in pixels
         MINOR_LEN = 7             # Minor tick length in pixels
+        FADE_ZONE = 40            # Pixels from edge where ticks fade
 
         center_x = self.width() / 2
         height = self.height()
@@ -45,17 +46,28 @@ class CompassOSD(QWidget):
         start_deg = int(self._yaw - half_width_deg) - TICK_INTERVAL
         end_deg = int(self._yaw + half_width_deg) + TICK_INTERVAL
 
-        pen = QPen(Qt.green, 2)
-        painter.setPen(pen)
         painter.setFont(QFont("Arial", 10))
 
         # Draw tick marks and labels
         for deg in range(start_deg, end_deg + 1, TICK_INTERVAL):
             x = center_x + (deg - self._yaw) * SCALE
+
+            distance_to_edge = min(x, self.width() - x)
+            if distance_to_edge < FADE_ZONE:
+                alpha = distance_to_edge / FADE_ZONE
+            else:
+                alpha = 1.0
+            color = QColor(0, 255, 0)
+            color.setAlphaF(alpha)
+            painter.setPen(QPen(color, 2))
+
             if deg % MAJOR_INTERVAL == 0:
-                tick_len = MAJOR_LEN
-                painter.drawLine(x, height, x, height - tick_len)
                 heading = deg % 360
+                if heading == 0:
+                    tick_len = int(MAJOR_LEN * 1.5)
+                else:
+                    tick_len = MAJOR_LEN
+                painter.drawLine(x, height, x, height - tick_len)
                 if heading == 0:
                     label = "N"
                 elif heading == 90:
@@ -71,6 +83,7 @@ class CompassOSD(QWidget):
                 painter.drawLine(x, height, x, height - MINOR_LEN)
 
         # Centre indicator showing current heading
+        painter.setPen(QPen(Qt.green, 2))
         painter.setBrush(Qt.green)
         pointer = QPolygon([
             QPoint(center_x, 0),
