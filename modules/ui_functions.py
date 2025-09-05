@@ -22,6 +22,7 @@ from main import *
 # ///////////////////////////////////////////////////////////////
 GLOBAL_STATE = False
 GLOBAL_TITLE_BAR = True
+GLOBAL_FULLSCREEN = False
 
 class UIFunctions(MainWindow):
     # MAXIMIZE/RESTORE
@@ -47,6 +48,33 @@ class UIFunctions(MainWindow):
             self.ui.appMargins.setContentsMargins(10, 10, 10, 10)
             self.ui.maximizeRestoreAppBtn.setToolTip("Maximize")
             self.ui.maximizeRestoreAppBtn.setIcon(QIcon(u":/icons/images/icons/icon_maximize.png"))
+            self.ui.frame_size_grip.show()
+            self.left_grip.show()
+            self.right_grip.show()
+            self.top_grip.show()
+            self.bottom_grip.show()
+
+    # FULL SCREEN TOGGLE
+    # ///////////////////////////////////////////////////////////////
+    def full_screen(self):
+        global GLOBAL_FULLSCREEN
+        if not GLOBAL_FULLSCREEN:
+            self.showFullScreen()
+            GLOBAL_FULLSCREEN = True
+            self.ui.appMargins.setContentsMargins(0, 0, 0, 0)
+            self.ui.fullScreenAppBtn.setToolTip("Exit Full Screen")
+            self.ui.fullScreenAppBtn.setIcon(QIcon(u":/icons/images/icons/cil-window-restore.png"))
+            self.ui.frame_size_grip.hide()
+            self.left_grip.hide()
+            self.right_grip.hide()
+            self.top_grip.hide()
+            self.bottom_grip.hide()
+        else:
+            GLOBAL_FULLSCREEN = False
+            self.showNormal()
+            self.ui.appMargins.setContentsMargins(10, 10, 10, 10)
+            self.ui.fullScreenAppBtn.setToolTip("Full Screen")
+            self.ui.fullScreenAppBtn.setIcon(QIcon(u":/icons/images/icons/cil-window-maximize.png"))
             self.ui.frame_size_grip.show()
             self.left_grip.show()
             self.right_grip.show()
@@ -267,6 +295,9 @@ class UIFunctions(MainWindow):
 
         # MAXIMIZE/RESTORE
         self.ui.maximizeRestoreAppBtn.clicked.connect(lambda: UIFunctions.maximize_restore(self))
+
+        # FULL SCREEN
+        self.ui.fullScreenAppBtn.clicked.connect(lambda: UIFunctions.full_screen(self))
 
         # CLOSE APPLICATION
         self.ui.closeAppBtn.clicked.connect(lambda: self.close())
