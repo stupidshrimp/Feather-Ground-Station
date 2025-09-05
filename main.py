@@ -265,6 +265,7 @@ class MainWindow(QMainWindow):
         self.ui.btn_data.setStyleSheet(
             "background-image: url(:/icons/images/icons/cil-chart-line.png);"
         )
+        self.ui.btn_data.setText("Telemetry Data")
         self.ui.verticalLayout_8.addWidget(self.ui.btn_data)
         widgets.btn_data = self.ui.btn_data
 
@@ -275,7 +276,7 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout(self.data_page)
 
-        title_label = QLabel("Data")
+        title_label = QLabel("Telemetry Data")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("font-size: 16px; font-weight: bold;")
         layout.addWidget(title_label)
