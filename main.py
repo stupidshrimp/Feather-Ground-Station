@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, QMetaObject, Slot
 from PySide6.QtGui import QCursor
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtCore import QUrl
 
 from serial.tools import list_ports
 
@@ -105,6 +107,13 @@ class MainWindow(QMainWindow):
         self.joystick_cfg = self.config.setdefault("joystick", {})
         self.crsf_cfg = self.config.setdefault("crsf", {})
         self.vtx_cfg = self.config.setdefault("vtx", {})
+        self.warning_cfg = self.config.setdefault("warnings", {})
+
+        # Warning system state
+        self.stall_alarm_triggered = False
+        self.altitude_alarm_triggered = False
+        self.roll_alarm_triggered = False
+        self.sound_players = {}
 
         # Initialize the video feed using the configured device index
         self.video_port = self.vtx_cfg.get("port", "")
@@ -476,6 +485,60 @@ class MainWindow(QMainWindow):
         else:
             label.setStyleSheet("")
 
+    def play_sound(self, name: str):
+        """Play a warning sound identified by ``name``.
+
+        MP3 files are expected to reside in an ``audio`` directory and be
+        named ``{name}.mp3``. The player instances are cached so repeated
+        alerts reuse the same player.
+        """
+        file_path = os.path.join("audio", f"{name}.mp3")
+        player, output = self.sound_players.get(name, (QMediaPlayer(), QAudioOutput()))
+        player.setAudioOutput(output)
+        player.setSource(QUrl.fromLocalFile(file_path))
+        output.setVolume(1.0)
+        player.play()
+        self.sound_players[name] = (player, output)
+
+    def check_warnings(self):
+        """Evaluate telemetry values against configured thresholds and play alarms."""
+        if (
+            self.current_airspeed is None
+            or self.current_altitude is None
+            or self.telemetry_roll is None
+        ):
+            return
+
+        # Airspeed warning: low airspeed at high altitude
+        if (
+            self.current_airspeed < self.warning_cfg.get("stall_airspeed", 0)
+            and self.current_altitude > self.warning_cfg.get("stall_altitude", 0)
+        ):
+            if not self.stall_alarm_triggered:
+                self.play_sound("airspeed_warning")
+                self.stall_alarm_triggered = True
+        else:
+            self.stall_alarm_triggered = False
+
+        # Altitude warning: low altitude at high airspeed
+        if (
+            self.current_altitude < self.warning_cfg.get("altitude_alarm_altitude", 0)
+            and self.current_airspeed > self.warning_cfg.get("altitude_alarm_airspeed", 0)
+        ):
+            if not self.altitude_alarm_triggered:
+                self.play_sound("altitude_warning")
+                self.altitude_alarm_triggered = True
+        else:
+            self.altitude_alarm_triggered = False
+
+        # Roll angle warning
+        if abs(self.telemetry_roll) > self.warning_cfg.get("roll_angle", 0):
+            if not self.roll_alarm_triggered:
+                self.play_sound("roll_warning")
+                self.roll_alarm_triggered = True
+        else:
+            self.roll_alarm_triggered = False
+
     def handle_telemetry(self, packet_type, *values) -> None:
         """Receive decoded telemetry from ``CRSFPacketProcessor`` and cache it."""
         self.packet_count += 1
@@ -533,6 +596,7 @@ class MainWindow(QMainWindow):
 
         # Schedule a label/OSD refresh on the GUI thread. This ensures that
         # updates triggered by telemetry packets do not block the interface.
+        self.check_warnings()
         QMetaObject.invokeMethod(self, "update_labels", Qt.QueuedConnection)
 
     def transmit_data(self):
@@ -650,6 +714,73 @@ class MainWindow(QMainWindow):
         vtx_port_row.addWidget(self.video_port_combo)
         vtx_layout.addLayout(vtx_port_row)
 
+        add_separator()
+
+        # Warning system settings
+        warn_layout, _ = add_section("Warning System")
+
+        warn_layout.addWidget(QLabel("Air Speed Alarm"))
+        stall_speed_row = QHBoxLayout()
+        stall_speed_row.addWidget(QLabel("Airspeed <"))
+        self.stall_speed_slider = QSlider(Qt.Horizontal)
+        self.stall_speed_slider.setRange(0, 200)
+        self.stall_speed_slider.setValue(
+            self.warning_cfg.get("stall_airspeed", 0)
+        )
+        stall_speed_row.addWidget(self.stall_speed_slider)
+        self.stall_speed_value = QLabel(str(self.stall_speed_slider.value()))
+        stall_speed_row.addWidget(self.stall_speed_value)
+        warn_layout.addLayout(stall_speed_row)
+
+        stall_alt_row = QHBoxLayout()
+        stall_alt_row.addWidget(QLabel("Altitude >"))
+        self.stall_alt_slider = QSlider(Qt.Horizontal)
+        self.stall_alt_slider.setRange(0, 1000)
+        self.stall_alt_slider.setValue(
+            self.warning_cfg.get("stall_altitude", 0)
+        )
+        stall_alt_row.addWidget(self.stall_alt_slider)
+        self.stall_alt_value = QLabel(str(self.stall_alt_slider.value()))
+        stall_alt_row.addWidget(self.stall_alt_value)
+        warn_layout.addLayout(stall_alt_row)
+
+        warn_layout.addWidget(QLabel("Altitude Alarm"))
+        alt_alarm_alt_row = QHBoxLayout()
+        alt_alarm_alt_row.addWidget(QLabel("Altitude <"))
+        self.alt_alarm_alt_slider = QSlider(Qt.Horizontal)
+        self.alt_alarm_alt_slider.setRange(0, 1000)
+        self.alt_alarm_alt_slider.setValue(
+            self.warning_cfg.get("altitude_alarm_altitude", 0)
+        )
+        alt_alarm_alt_row.addWidget(self.alt_alarm_alt_slider)
+        self.alt_alarm_alt_value = QLabel(str(self.alt_alarm_alt_slider.value()))
+        alt_alarm_alt_row.addWidget(self.alt_alarm_alt_value)
+        warn_layout.addLayout(alt_alarm_alt_row)
+
+        alt_alarm_speed_row = QHBoxLayout()
+        alt_alarm_speed_row.addWidget(QLabel("Airspeed >"))
+        self.alt_alarm_speed_slider = QSlider(Qt.Horizontal)
+        self.alt_alarm_speed_slider.setRange(0, 200)
+        self.alt_alarm_speed_slider.setValue(
+            self.warning_cfg.get("altitude_alarm_airspeed", 0)
+        )
+        alt_alarm_speed_row.addWidget(self.alt_alarm_speed_slider)
+        self.alt_alarm_speed_value = QLabel(str(self.alt_alarm_speed_slider.value()))
+        alt_alarm_speed_row.addWidget(self.alt_alarm_speed_value)
+        warn_layout.addLayout(alt_alarm_speed_row)
+
+        roll_row = QHBoxLayout()
+        roll_row.addWidget(QLabel("Roll |>|"))
+        self.roll_angle_slider = QSlider(Qt.Horizontal)
+        self.roll_angle_slider.setRange(0, 180)
+        self.roll_angle_slider.setValue(
+            self.warning_cfg.get("roll_angle", 0)
+        )
+        roll_row.addWidget(self.roll_angle_slider)
+        self.roll_angle_value = QLabel(str(self.roll_angle_slider.value()))
+        roll_row.addWidget(self.roll_angle_value)
+        warn_layout.addLayout(roll_row)
+
         # Set default selections
         self.control_port_combo.setCurrentText(
             self.joystick_cfg.get("port", "Not connected")
@@ -668,6 +799,11 @@ class MainWindow(QMainWindow):
         self.packet_interval_edit.editingFinished.connect(self.on_packet_interval_changed)
         self.deadzone_slider.valueChanged.connect(self.on_deadzone_changed)
         self.sensitivity_slider.valueChanged.connect(self.on_sensitivity_changed)
+        self.stall_speed_slider.valueChanged.connect(self.on_stall_speed_changed)
+        self.stall_alt_slider.valueChanged.connect(self.on_stall_alt_changed)
+        self.alt_alarm_alt_slider.valueChanged.connect(self.on_alt_alarm_alt_changed)
+        self.alt_alarm_speed_slider.valueChanged.connect(self.on_alt_alarm_speed_changed)
+        self.roll_angle_slider.valueChanged.connect(self.on_roll_angle_changed)
 
         # Initial connection status
         self.update_connection_status(self.control_status, self.joystick is not None)
@@ -782,6 +918,31 @@ class MainWindow(QMainWindow):
         self.sensitivity_value_label.setText(str(value))
         if self.joystick:
             self.joystick.set_sensitivity(value)
+        save_config(self.config)
+
+    def on_stall_speed_changed(self, value: int):
+        self.warning_cfg["stall_airspeed"] = value
+        self.stall_speed_value.setText(str(value))
+        save_config(self.config)
+
+    def on_stall_alt_changed(self, value: int):
+        self.warning_cfg["stall_altitude"] = value
+        self.stall_alt_value.setText(str(value))
+        save_config(self.config)
+
+    def on_alt_alarm_alt_changed(self, value: int):
+        self.warning_cfg["altitude_alarm_altitude"] = value
+        self.alt_alarm_alt_value.setText(str(value))
+        save_config(self.config)
+
+    def on_alt_alarm_speed_changed(self, value: int):
+        self.warning_cfg["altitude_alarm_airspeed"] = value
+        self.alt_alarm_speed_value.setText(str(value))
+        save_config(self.config)
+
+    def on_roll_angle_changed(self, value: int):
+        self.warning_cfg["roll_angle"] = value
+        self.roll_angle_value.setText(str(value))
         save_config(self.config)
 
     def start_blinking(self, label: QLabel):

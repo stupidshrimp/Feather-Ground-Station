@@ -16,6 +16,16 @@ DEFAULT_CONFIG = {
         "packet_interval": 3,
     },
     "vtx": {"port": "Not connected", "device_index": 1},
+    "warnings": {
+        # Trigger when airspeed < stall_airspeed and altitude > stall_altitude
+        "stall_airspeed": 10,
+        "stall_altitude": 50,
+        # Trigger when altitude < altitude_alarm_altitude and airspeed > altitude_alarm_airspeed
+        "altitude_alarm_airspeed": 30,
+        "altitude_alarm_altitude": 20,
+        # Trigger when |roll| > roll_angle
+        "roll_angle": 45,
+    },
 }
 
 def load_config(path: str = "config.json"):
