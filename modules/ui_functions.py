@@ -72,6 +72,7 @@ class UIFunctions(MainWindow):
         else:
             GLOBAL_FULLSCREEN = False
             self.showNormal()
+
             self.ui.appMargins.setContentsMargins(10, 10, 10, 10)
             self.ui.fullScreenAppBtn.setToolTip("Full Screen")
             self.ui.fullScreenAppBtn.setIcon(QIcon(u":/icons/images/icons/cil-window-maximize.png"))
