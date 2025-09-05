@@ -3013,6 +3013,7 @@ background-repeat: no-repeat;</string>
                           </property>
                          </widget>
                          <widget class="QLabel" name="receivedFrameFreqLabel">
+
                            <property name="geometry">
                             <rect>
                              <x>10</x>
@@ -3021,6 +3022,7 @@ background-repeat: no-repeat;</string>
                              <height>20</height>
                             </rect>
                            </property>
+
                           <property name="text">
                            <string>received frame frequency: 0 Hz</string>
                           </property>

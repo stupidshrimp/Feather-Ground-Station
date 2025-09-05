@@ -1485,6 +1485,7 @@ class Ui_MainWindow(object):
         self.receivedFrameFreqLabel.setObjectName(u"receivedFrameFreqLabel")
         self.receivedFrameFreqLabel.setGeometry(QRect(10, 220, 220, 20))
 
+
         self.verticalLayout_20.addWidget(self.frame)
 
         self.stackedWidget.addWidget(self.new_page)
