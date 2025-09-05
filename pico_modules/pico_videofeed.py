@@ -1,8 +1,53 @@
 from PySide6.QtGui import QImage, QPixmap
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QAbstractAnimation
+from PySide6.QtCore import (
+    Qt,
+    QTimer,
+    QPropertyAnimation,
+    QEasingCurve,
+    QAbstractAnimation,
+    QThread,
+    Signal,
+    Slot,
+    QObject,
+)
 from PySide6.QtWidgets import QLabel, QGraphicsOpacityEffect
 import cv2
 import numpy as np
+
+
+class FrameWorker(QObject):
+    """Worker thread that captures and processes frames."""
+
+    frame_ready = Signal(QImage)
+    error = Signal(str)
+
+    def __init__(self, video_feed):
+        super().__init__()
+        self.video_feed = video_feed
+
+    @Slot()
+    def process_frame(self):
+        cap = self.video_feed.cap
+        if cap and cap.isOpened():
+            ret, frame = cap.read()
+            if ret:
+                frame = self.video_feed.deinterlace(frame)
+
+                h, w, _ = frame.shape
+                margin_x = int(w * 0.02)
+                margin_y = int(h * 0.02)
+                frame = frame[margin_y:h - margin_y, margin_x:w - margin_x]
+
+                frame = cv2.resize(frame, (1280, 960), interpolation=cv2.INTER_LINEAR)
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = frame.shape
+                bytes_per_line = ch * w
+                qt_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                self.frame_ready.emit(qt_image)
+            else:
+                self.error.emit("Camera Error or Disconnected")
+        else:
+            self.error.emit("No Camera Detected")
 
 
 class VideoFeed:
@@ -22,8 +67,16 @@ class VideoFeed:
         self.device_index = device_index
         self.cap = None  # Camera capture object
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_frame)
         self.text_animation = None  # Placeholder for the text animation
+
+        # Worker thread for frame processing
+        self.worker_thread = QThread()
+        self.worker = FrameWorker(self)
+        self.worker.moveToThread(self.worker_thread)
+        self.timer.timeout.connect(self.worker.process_frame)
+        self.worker.frame_ready.connect(self.update_frame)
+        self.worker.error.connect(self._handle_worker_error)
+        self.worker_thread.start()
 
         # Timer for periodically checking camera availability
         self.camera_check_timer = QTimer()
@@ -44,7 +97,7 @@ class VideoFeed:
                 self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 960)
                 self.label.clear()  # Clear any error message
                 self.remove_opacity_effect()  # Remove opacity effect
-                self.timer.start(10)  # Update frame every 10 ms (~100 FPS)
+                self.timer.start(30)  # Update frame every 30 ms (~30 FPS)
             else:
                 # Show fading error message when no camera is detected
                 self.show_fading_text("No Camera Detected")
@@ -57,33 +110,19 @@ class VideoFeed:
         self.cap = None  # Reset the capture object
         self.camera_check_timer.stop()
 
-    def update_frame(self):
-        """Updates the video feed on the QLabel."""
-        if self.cap and self.cap.isOpened():
-            ret, frame = self.cap.read()
-            if ret:
-                self.remove_opacity_effect()  # Ensure no fading effect on video feed
+    @Slot(QImage)
+    def update_frame(self, image: QImage):
+        """Updates the video feed on the QLabel with a processed frame."""
+        if image is not None:
+            self.remove_opacity_effect()  # Ensure no fading effect on video feed
+            self.label.setPixmap(QPixmap.fromImage(image))
 
-                frame = self.deinterlace(frame)
-
-                h, w, _ = frame.shape
-                margin_x = int(w * 0.02)
-                margin_y = int(h * 0.02)
-                frame = frame[margin_y:h - margin_y, margin_x:w - margin_x]
-
-                frame = cv2.resize(frame, (1280, 960), interpolation=cv2.INTER_LINEAR)
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                h, w, ch = frame.shape
-                bytes_per_line = ch * w
-                qt_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-
-                self.label.setPixmap(QPixmap.fromImage(qt_image))
-            else:
-                # If no frame is read, stop the timer and show an error message
-                self.show_fading_text("Camera Error or Disconnected")
-                self.stop()
-        else:
-            self.show_fading_text("No Camera Detected")
+    @Slot(str)
+    def _handle_worker_error(self, message: str):
+        """Handle errors emitted from the worker thread."""
+        self.show_fading_text(message)
+        if message == "Camera Error or Disconnected":
+            self.stop()
 
     def deinterlace(self, frame):
         even = frame[0::2]
