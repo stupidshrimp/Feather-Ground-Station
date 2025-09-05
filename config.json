@@ -1,16 +1,19 @@
 {
     "joystick": {
-        "port": "COM14",
+        "port": "COM5",
         "baudrate": 9600,
         "deadzone": 5,
         "sensitivity": 100
     },
     "crsf": {
-        "port": "COM3",
+        "port": "COM4",
         "baudrate": 921600,
         "packet_interval": 3
     },
-    "vtx": {"port": "Not connected", "device_index": 1},
+    "vtx": {
+        "port": "Not connected",
+        "device_index": 1
+    },
     "warnings": {
         "stall_airspeed": 10,
         "stall_altitude": 50,
