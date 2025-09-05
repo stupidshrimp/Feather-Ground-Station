@@ -227,6 +227,7 @@ class MainWindow(QMainWindow):
         widgets.closeAppBtn.clicked.connect(self.close)
         widgets.minimizeAppBtn.clicked.connect(self.showMinimized)
         widgets.maximizeRestoreAppBtn.clicked.connect(lambda: UIFunctions.maximize_restore(self))
+        widgets.fullScreenAppBtn.clicked.connect(lambda: UIFunctions.full_screen(self))
 
         # SET HOME PAGE AND SELECT MENU
         widgets.stackedWidget.setCurrentWidget(widgets.home)
