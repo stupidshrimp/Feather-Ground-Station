@@ -7,13 +7,13 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1940</width>
+    <width>1800</width>
     <height>1000</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>1940</width>
+    <width>1800</width>
     <height>1000</height>
    </size>
   </property>
@@ -1669,7 +1669,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="maximizeRestoreAppBtn">
+                <widget class="QPushButton" name="maximizeRestoreAppBtn">
                   <property name="minimumSize">
                    <size>
                     <width>28</width>
@@ -1710,10 +1710,45 @@ li.checked::marker { content: &quot;\2612&quot;; }
                     <height>20</height>
                    </size>
                   </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="closeAppBtn">
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="fullScreenAppBtn">
+                 <property name="minimumSize">
+                  <size>
+                   <width>28</width>
+                   <height>28</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>28</width>
+                   <height>28</height>
+                  </size>
+                 </property>
+                 <property name="cursor">
+                  <cursorShape>PointingHandCursor</cursorShape>
+                 </property>
+                 <property name="toolTip">
+                  <string>Full Screen</string>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                 <property name="icon">
+                  <iconset resource="resources.qrc">
+                   <normaloff>:/icons/images/icons/cil-window-maximize.png</normaloff>:/icons/images/icons/cil-window-maximize.png</iconset>
+                 </property>
+                 <property name="iconSize">
+                  <size>
+                   <width>20</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="closeAppBtn">
                   <property name="minimumSize">
                    <size>
                     <width>28</width>

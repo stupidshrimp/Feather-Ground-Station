@@ -29,8 +29,8 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(1940, 1000)
-        MainWindow.setMinimumSize(QSize(1940, 1000))
+        MainWindow.resize(1800, 1000)
+        MainWindow.setMinimumSize(QSize(1800, 1000))
         self.styleSheet = QWidget(MainWindow)
         self.styleSheet.setObjectName(u"styleSheet")
         font = QFont()
@@ -989,6 +989,18 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2.addWidget(self.maximizeRestoreAppBtn)
 
+        self.fullScreenAppBtn = QPushButton(self.rightButtons)
+        self.fullScreenAppBtn.setObjectName(u"fullScreenAppBtn")
+        self.fullScreenAppBtn.setMinimumSize(QSize(28, 28))
+        self.fullScreenAppBtn.setMaximumSize(QSize(28, 28))
+        self.fullScreenAppBtn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        icon4 = QIcon()
+        icon4.addFile(u":/icons/images/icons/cil-window-maximize.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.fullScreenAppBtn.setIcon(icon4)
+        self.fullScreenAppBtn.setIconSize(QSize(20, 20))
+
+        self.horizontalLayout_2.addWidget(self.fullScreenAppBtn)
+
         self.closeAppBtn = QPushButton(self.rightButtons)
         self.closeAppBtn.setObjectName(u"closeAppBtn")
         self.closeAppBtn.setMinimumSize(QSize(28, 28))
@@ -1106,9 +1118,9 @@ class Ui_MainWindow(object):
         self.pushButton.setFont(font)
         self.pushButton.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.pushButton.setStyleSheet(u"background-color: rgb(52, 59, 72);")
-        icon4 = QIcon()
-        icon4.addFile(u":/icons/images/icons/cil-folder-open.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.pushButton.setIcon(icon4)
+        icon5 = QIcon()
+        icon5.addFile(u":/icons/images/icons/cil-folder-open.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.pushButton.setIcon(icon5)
 
         self.gridLayout.addWidget(self.pushButton, 0, 1, 1, 1)
 
@@ -1231,9 +1243,9 @@ class Ui_MainWindow(object):
         self.commandLinkButton.setObjectName(u"commandLinkButton")
         self.commandLinkButton.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.commandLinkButton.setStyleSheet(u"")
-        icon5 = QIcon()
-        icon5.addFile(u":/icons/images/icons/cil-link.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.commandLinkButton.setIcon(icon5)
+        icon6 = QIcon()
+        icon6.addFile(u":/icons/images/icons/cil-link.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.commandLinkButton.setIcon(icon6)
 
         self.gridLayout_2.addWidget(self.commandLinkButton, 1, 6, 1, 1)
 
@@ -1656,6 +1668,10 @@ class Ui_MainWindow(object):
         self.maximizeRestoreAppBtn.setToolTip(QCoreApplication.translate("MainWindow", u"Maximize", None))
 #endif // QT_CONFIG(tooltip)
         self.maximizeRestoreAppBtn.setText("")
+#if QT_CONFIG(tooltip)
+        self.fullScreenAppBtn.setToolTip(QCoreApplication.translate("MainWindow", u"Full Screen", None))
+#endif // QT_CONFIG(tooltip)
+        self.fullScreenAppBtn.setText("")
 #if QT_CONFIG(tooltip)
         self.closeAppBtn.setToolTip(QCoreApplication.translate("MainWindow", u"Close", None))
 #endif // QT_CONFIG(tooltip)
