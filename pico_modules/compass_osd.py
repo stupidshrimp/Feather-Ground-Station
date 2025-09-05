@@ -6,6 +6,8 @@ degrees and draws a scrolling compass scale with tick marks and labels.
 A vertical line at the centre of the widget indicates the current heading.
 """
 
+import math
+
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QPainter, QPen, QFont, QColor
 from PySide6.QtCore import Qt
@@ -43,8 +45,8 @@ class CompassOSD(QWidget):
         height = self.height()
 
         half_width_deg = self.width() / (2 * SCALE)
-        start_deg = int(self._yaw - half_width_deg) - TICK_INTERVAL
-        end_deg = int(self._yaw + half_width_deg) + TICK_INTERVAL
+        start_deg = int(math.floor(self._yaw - half_width_deg)) - TICK_INTERVAL
+        end_deg = int(math.ceil(self._yaw + half_width_deg)) + TICK_INTERVAL
 
         painter.setFont(QFont("Arial", 10))
 
@@ -56,14 +58,15 @@ class CompassOSD(QWidget):
 
             distance_to_edge = min(x, self.width() - x)
             if distance_to_edge <= 0:
-                alpha = 0.0
-            elif distance_to_edge < FADE_ZONE:
+                continue
+            if distance_to_edge < FADE_ZONE:
                 alpha = distance_to_edge / FADE_ZONE
             else:
                 alpha = 1.0
             color = QColor(0, 255, 0)
             color.setAlphaF(alpha)
-            painter.setPen(QPen(color, 2))
+            tick_pen = QPen(color, 2)
+            label_pen = QPen(color)
 
             if deg % MAJOR_INTERVAL == 0:
                 heading = deg % 360
@@ -71,6 +74,7 @@ class CompassOSD(QWidget):
                     tick_len = int(MAJOR_LEN * 1.5)
                 else:
                     tick_len = MAJOR_LEN
+                painter.setPen(tick_pen)
                 painter.drawLine(x, height, x, height - tick_len)
                 if heading == 0:
                     label = "N"
@@ -82,8 +86,18 @@ class CompassOSD(QWidget):
                     label = "W"
                 else:
                     label = f"{heading:03d}"
-                painter.drawText(x - 10, height - tick_len - 2, label)
+                # Center the label over the tick mark to prevent visual
+                # jitter when the text width changes (e.g. switching between
+                # numeric headings and cardinal letters).
+                text_width = painter.fontMetrics().horizontalAdvance(label)
+                painter.setPen(label_pen)
+                painter.drawText(
+                    int(round(x - text_width / 2)),
+                    height - tick_len - 2,
+                    label,
+                )
             else:
+                painter.setPen(tick_pen)
                 painter.drawLine(x, height, x, height - MINOR_LEN)
 
         # Centre indicator showing current heading
