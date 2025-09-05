@@ -7,13 +7,17 @@
    <rect>
     <x>0</x>
     <y>0</y>
+
     <width>4200</width>
+
     <height>1000</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
+
     <width>4200</width>
+
     <height>1000</height>
    </size>
   </property>
