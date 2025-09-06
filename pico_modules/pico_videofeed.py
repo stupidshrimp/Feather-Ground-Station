@@ -61,7 +61,9 @@ class FrameWorker(QObject):
                 frame = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
                 h, w, ch = frame.shape
                 bytes_per_line = ch * w
-                qt_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                qt_image = QImage(
+                    frame.data, w, h, bytes_per_line, QImage.Format_RGB888
+                ).copy()
                 self.frame_ready.emit(qt_image)
             else:
                 self.error.emit("Camera Error or Disconnected")
