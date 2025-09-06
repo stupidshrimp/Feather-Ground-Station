@@ -194,11 +194,31 @@ class CRSFPacketProcessor(QObject):
                     continue
 
                 length = self._rx_buffer[1]
-                frame_end = length + 2  # sync + length + payload+crc
+
+                # Guard against unreasonable frame lengths which indicate we are
+                # out of sync.  CRSF frames are at most 64 bytes long
+                # (including type, payload and CRC).
+                if length > 64:
+                    del self._rx_buffer[0]
+                    continue
+
+                frame_end = length + 2  # sync + length + payload + crc
+
 
                 # Wait for the rest of the frame if it's not all here yet
                 if len(self._rx_buffer) < frame_end:
                     break
+
+                # Verify the CRC before decoding.  If it doesn't match we
+                # discard only the sync byte and try again, which helps us
+                # resynchronise with the stream when bytes are dropped.
+                if (
+                    self.crc8_data(self._rx_buffer[2:frame_end - 1])
+                    != self._rx_buffer[frame_end - 1]
+                ):
+                    del self._rx_buffer[0]
+                    continue
+
 
                 # Extract complete packet and remove from buffer
                 packet = bytes(self._rx_buffer[:frame_end])
