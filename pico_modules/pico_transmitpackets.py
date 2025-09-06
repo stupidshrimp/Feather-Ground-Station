@@ -1,8 +1,11 @@
 from enum import IntEnum
 import struct
+import logging
 from PySide6.QtCore import QObject, Signal, QIODevice
 from PySide6.QtSerialPort import QSerialPort
 from serial.tools import list_ports
+
+logger = logging.getLogger(__name__)
 
 class CRSFPacketProcessor(QObject):
     """Process CRSF packets and emit telemetry via Qt signals."""
@@ -62,12 +65,16 @@ class CRSFPacketProcessor(QObject):
             self.serial.setBaudRate(self.baudrate)
             self.serial.readyRead.connect(self.read_serial_data)
             if self.serial.open(QIODevice.ReadWrite):
-                print(f"Connected to {self.serial_port} at {self.baudrate} baud.")
+                logger.info(
+                    "Connected to %s at %s baud.", self.serial_port, self.baudrate
+                )
             else:
-                print(f"Failed to open serial port: {self.serial.errorString()}")
+                logger.error(
+                    "Failed to open serial port: %s", self.serial.errorString()
+                )
                 self.serial = None
         except Exception as e:
-            print(f"Failed to open serial port: {e}")
+            logger.error("Failed to open serial port: %s", e)
             self.serial = None
 
     def is_connected(self):
@@ -153,7 +160,7 @@ class CRSFPacketProcessor(QObject):
 
         # Check serial connection
         if not self.is_connected():
-            print("Serial port not connected. Attempting to reconnect...")
+            logger.warning("Serial port not connected. Attempting to reconnect...")
             self.connect_serial()
             if not self.is_connected():
                 return "Error"
@@ -167,7 +174,7 @@ class CRSFPacketProcessor(QObject):
                 # print(f"Packet sent: {packet.hex()} | Channels: {self.channels}")
                 return "Good"  # Return "Good" only if transmission is successful
             except Exception as e:
-                print(f"Failed to send packet: {e}")
+                logger.error("Failed to send packet: %s", e)
                 return f"Error: {e}"
 
         # If the serial port is not available, return an error
@@ -187,7 +194,7 @@ class CRSFPacketProcessor(QObject):
             if new_data:
                 self._rx_buffer.extend(new_data)
                 # Debug: show raw telemetry bytes as they are received
-                print(f"Telemetry raw data: {new_data.hex()}")
+                logger.debug("Telemetry raw data: %s", new_data.hex())
 
             # Process packets while a complete frame is present in the buffer
             while True:
@@ -227,7 +234,9 @@ class CRSFPacketProcessor(QObject):
                     != self._rx_buffer[frame_end - 1]
                 ):
                     # CRC mismatch means the packet is corrupt and cannot be parsed
-                    print("Telemetry CRC mismatch; dropping byte and resynchronising")
+                    logger.debug(
+                        "Telemetry CRC mismatch; dropping byte and resynchronising"
+                    )
                     del self._rx_buffer[0]
                     continue
 
@@ -238,8 +247,8 @@ class CRSFPacketProcessor(QObject):
 
                 packet_type = packet[2]
                 # Debug: log each decoded telemetry packet with its type
-                print(
-                    f"Telemetry packet 0x{packet_type:02X}: {packet.hex()}"
+                logger.debug(
+                    "Telemetry packet 0x%02X: %s", packet_type, packet.hex()
                 )
 
                 # Ignore parameter setting packets (0x3A)
@@ -258,18 +267,20 @@ class CRSFPacketProcessor(QObject):
                     self.decode_custom(packet)
                 else:
                     # Unknown packet type encountered
-                    print(
-                        f"Unknown telemetry packet type 0x{packet_type:02X}: {packet.hex()}"
+                    logger.debug(
+                        "Unknown telemetry packet type 0x%02X: %s",
+                        packet_type,
+                        packet.hex(),
                     )
 
         except Exception as e:
-            print(f"Error reading serial data: {e}")
+            logger.error("Error reading serial data: %s", e)
 
 
     def decode_link_statistics(self, data):
         """Decode link statistics telemetry packet and emit the info."""
         if len(data) < 13:
-            print("Link statistics packet too short")
+            logger.warning("Link statistics packet too short")
             return
         try:
             (
@@ -297,13 +308,13 @@ class CRSFPacketProcessor(QObject):
                 )
             )
         except Exception as e:
-            print(f"Failed to parse link statistics packet: {e}")
+            logger.error("Failed to parse link statistics packet: %s", e)
 
 
     def decode_gps(self, data):
         """Decode a CRSF GPS telemetry packet."""
         if len(data) < 18:
-            print("GPS packet too short")
+            logger.warning("GPS packet too short")
             return
         try:
             payload = data[3:18]
@@ -320,26 +331,26 @@ class CRSFPacketProcessor(QObject):
                 ("gps", lat, lon, speed_mph, course, alt_ft, sats)
             )
         except Exception as e:
-            print(f"Failed to parse GPS packet: {e}")
+            logger.error("Failed to parse GPS packet: %s", e)
 
 
     def decode_battery(self, data):
         """Decode battery telemetry packet."""
         if len(data) < 9:
-            print("Battery packet too short")
+            logger.warning("Battery packet too short")
             return
         try:
             voltage, current, capacity = struct.unpack("<HHH", data[3:9])
             # Decoded values are currently unused but parsing is retained
             # to validate packet structure.
         except Exception as e:
-            print(f"Failed to parse battery packet: {e}")
+            logger.error("Failed to parse battery packet: %s", e)
 
 
     def decode_attitude(self, data):
         """Decode an attitude telemetry packet (0x1E)."""
         if len(data) < 9:
-            print("Attitude packet too short")
+            logger.warning("Attitude packet too short")
             return
         try:
             pitch, roll, yaw = struct.unpack(">hhh", data[3:9])
@@ -348,20 +359,20 @@ class CRSFPacketProcessor(QObject):
             yaw /= 10
             self.telemetry_ready.emit(("attitude", pitch, roll, yaw))
         except Exception as e:
-            print(f"Failed to parse attitude packet: {e}")
+            logger.error("Failed to parse attitude packet: %s", e)
 
 
     def decode_custom(self, data):
         """Decode a custom telemetry packet (0xF0) with 16 bytes of data."""
         if len(data) < 20:
-            print("Custom telemetry packet too short")
+            logger.warning("Custom telemetry packet too short")
             return
         try:
             payload = data[3:19]
             crc = data[19]
             # Custom telemetry data is parsed but not emitted.
         except Exception as e:
-            print(f"Failed to parse custom telemetry packet: {e}")
+            logger.error("Failed to parse custom telemetry packet: %s", e)
 
 
     def close_serial(self):
