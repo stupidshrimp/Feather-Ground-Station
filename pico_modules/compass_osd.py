@@ -17,6 +17,8 @@ class CompassOSD(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._yaw = 0.0
+        self._initialized = False
+        self._smoothing = 0.2  # Weight for new samples
         self.setMinimumHeight(50)
         # Use a fixed-width font so heading labels remain steady as the value
         # changes.  Proportional fonts cause the text to shift horizontally
@@ -28,8 +30,13 @@ class CompassOSD(QWidget):
 
     def setYaw(self, yaw_deg: float) -> None:
         """Update the displayed yaw in degrees."""
-        # Normalize yaw to 0-360 range
-        self._yaw = yaw_deg % 360.0
+        if not self._initialized:
+            self._yaw = yaw_deg % 360.0
+            self._initialized = True
+        else:
+            # Compute shortest angular difference and apply smoothing
+            delta = (yaw_deg - self._yaw + 180) % 360 - 180
+            self._yaw = (self._yaw + delta * self._smoothing) % 360.0
         self.update()
 
     def paintEvent(self, event):
