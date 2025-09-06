@@ -166,7 +166,7 @@ class MainWindow(QMainWindow):
                     baudrate=self.crsf_cfg.get("baudrate"),
                 )
                 self.crsf_processor.telemetry_ready.connect(
-                    lambda data: self.handle_telemetry(*data)
+                    self.handle_telemetry_wrapper
                 )
                 self.crsf_processor.error.connect(self.handle_worker_error)
             except Exception as e:
@@ -622,6 +622,12 @@ class MainWindow(QMainWindow):
             self.roll_alarm_start_time = None
             self.roll_alarm_playing = False
 
+    @Slot(object)
+    def handle_telemetry_wrapper(self, data) -> None:
+        """Unpack CRSF telemetry and forward it to ``handle_telemetry``."""
+        packet_type, *values = data
+        self.handle_telemetry(packet_type, *values)
+
     def handle_telemetry(self, packet_type, *values) -> None:
         """Receive decoded telemetry from ``CRSFPacketProcessor`` and cache it."""
         print(f"Telemetry {packet_type}: {values}")
@@ -970,7 +976,7 @@ class MainWindow(QMainWindow):
                     baudrate=self.crsf_cfg.get("baudrate"),
                 )
                 self.crsf_processor.telemetry_ready.connect(
-                    lambda data: self.handle_telemetry(*data)
+                    self.handle_telemetry_wrapper
                 )
             except Exception as e:
                 print(f"Failed to initialize CRSF processor: {e}")
