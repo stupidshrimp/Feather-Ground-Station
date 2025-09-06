@@ -1,6 +1,13 @@
 import sys
 import os
 import time
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -617,6 +624,7 @@ class MainWindow(QMainWindow):
 
     def handle_telemetry(self, packet_type, *values) -> None:
         """Receive decoded telemetry from ``CRSFPacketProcessor`` and cache it."""
+        print(f"Telemetry {packet_type}: {values}")
         self.packet_count += 1
         if packet_type == "attitude":
             pitch, roll, yaw = values
