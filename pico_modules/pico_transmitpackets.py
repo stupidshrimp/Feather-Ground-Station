@@ -179,8 +179,14 @@ class CRSFPacketProcessor(QObject):
             return
 
         try:
-            # Append all currently available bytes to the buffer
-            self._rx_buffer.extend(bytes(self.serial.readAll()))
+            # Read all currently available bytes and show their raw hexadecimal
+            # representation for debugging purposes.  This helps diagnose cases
+            # where no packets appear to be decoded by making every incoming
+            # byte visible in the terminal.
+            new_data = bytes(self.serial.readAll())
+            if new_data:
+                print(f"Raw serial data: {new_data.hex()}")
+            self._rx_buffer.extend(new_data)
 
             # Process packets while a complete frame is present in the buffer
             while True:
