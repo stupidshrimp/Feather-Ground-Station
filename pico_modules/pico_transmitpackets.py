@@ -204,6 +204,7 @@ class CRSFPacketProcessor(QObject):
 
                 frame_end = length + 2  # sync + length + payload + crc
 
+
                 # Wait for the rest of the frame if it's not all here yet
                 if len(self._rx_buffer) < frame_end:
                     break
@@ -217,6 +218,7 @@ class CRSFPacketProcessor(QObject):
                 ):
                     del self._rx_buffer[0]
                     continue
+
 
                 # Extract complete packet and remove from buffer
                 packet = bytes(self._rx_buffer[:frame_end])
