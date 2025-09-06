@@ -16,6 +16,8 @@ class AirspeedOSD(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._airspeed = 0.0
+        self._initialized = False
+        self._smoothing = 0.2  # Weight for new samples
         self.setMinimumWidth(80)
 
     def setAirspeed(self, airspeed: float) -> None:
@@ -26,7 +28,13 @@ class AirspeedOSD(QWidget):
         airspeed: float
             Airspeed value in miles per hour.
         """
-        self._airspeed = airspeed
+        if not self._initialized:
+            self._airspeed = airspeed
+            self._initialized = True
+        else:
+            self._airspeed = (
+                self._airspeed * (1 - self._smoothing) + airspeed * self._smoothing
+            )
         self.update()
 
     def paintEvent(self, event):

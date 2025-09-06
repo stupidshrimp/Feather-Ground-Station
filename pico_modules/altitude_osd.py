@@ -17,6 +17,8 @@ class AltitudeOSD(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._altitude = 0.0
+        self._initialized = False
+        self._smoothing = 0.2  # Weight for new samples
         self.setMinimumWidth(80)
 
     def setAltitude(self, altitude: float) -> None:
@@ -27,7 +29,13 @@ class AltitudeOSD(QWidget):
         altitude: float
             Altitude value in feet.
         """
-        self._altitude = altitude
+        if not self._initialized:
+            self._altitude = altitude
+            self._initialized = True
+        else:
+            self._altitude = (
+                self._altitude * (1 - self._smoothing) + altitude * self._smoothing
+            )
         self.update()
 
     def paintEvent(self, event):

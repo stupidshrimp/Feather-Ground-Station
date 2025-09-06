@@ -18,6 +18,8 @@ class RollPitchOSD(QWidget):
         super().__init__(parent)
         self._pitch = 0.0
         self._roll = 0.0
+        self._initialized = False
+        self._smoothing = 0.2  # Weight for new samples
         self.setMinimumSize(300, 300)
 
     def setRollPitch(self, roll_deg: float, pitch_deg: float) -> None:
@@ -30,8 +32,13 @@ class RollPitchOSD(QWidget):
         pitch_deg : float
             Pitch angle in degrees.
         """
-        self._roll = roll_deg
-        self._pitch = pitch_deg
+        if not self._initialized:
+            self._roll = roll_deg
+            self._pitch = pitch_deg
+            self._initialized = True
+        else:
+            self._roll = self._roll * (1 - self._smoothing) + roll_deg * self._smoothing
+            self._pitch = self._pitch * (1 - self._smoothing) + pitch_deg * self._smoothing
         self.update()
 
     def paintEvent(self, event):
