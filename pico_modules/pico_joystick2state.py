@@ -1,9 +1,35 @@
 import re
 import serial
 import threading
-import time
 from queue import Queue
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QThread
+
+
+class _SerialReader(QThread):
+    """Background thread that pulls lines from the serial port."""
+
+    error = Signal(str)
+
+    def __init__(self, serial_connection, stop_event, data_queue):
+        super().__init__()
+        self.serial_connection = serial_connection
+        self._stop = stop_event
+        self.data_queue = data_queue
+
+    def run(self):
+        try:
+            while not self._stop.is_set():
+                if self.serial_connection.is_open and self.serial_connection.in_waiting > 0:
+                    try:
+                        raw = self.serial_connection.readline().decode("utf-8").strip()
+                    except (serial.SerialException, OSError) as exc:
+                        self.error.emit(f"Serial connection error: {exc}")
+                        break
+                    self.data_queue.put(raw)
+                else:
+                    self.msleep(50)
+        except Exception as exc:  # pragma: no cover - serial read errors
+            self.error.emit(f"Error reading serial data: {exc}")
 
 
 class JoystickRawHandler(QObject):
@@ -37,8 +63,9 @@ class JoystickRawHandler(QObject):
         # Event used to signal the reading thread to stop
         self._stop = threading.Event()
 
-        # Start background thread to continually read data from the serial port
-        self.reading_thread = threading.Thread(target=self._read_joystick_data, daemon=True)
+        # Start background QThread to continually read data from the serial port
+        self.reading_thread = _SerialReader(self.serial_connection, self._stop, self.data_queue)
+        self.reading_thread.error.connect(self.error)
         self.reading_thread.start()
 
     def set_deadzone(self, percent):
@@ -50,20 +77,6 @@ class JoystickRawHandler(QObject):
     # ------------------------------------------------------------------
     # Serial helpers
     # ------------------------------------------------------------------
-    def _read_joystick_data(self):
-        """Continuously read raw lines from the serial connection."""
-        try:
-            while not self._stop.is_set():
-                if self.serial_connection.is_open and self.serial_connection.in_waiting > 0:
-                    raw = self.serial_connection.readline().decode("utf-8").strip()
-                    self.data_queue.put(raw)
-                else:
-                    time.sleep(0.05)
-        except serial.SerialException as exc:
-            self.error.emit(f"Serial connection error: {exc}")
-        except Exception as exc:  # pragma: no cover - serial read errors
-            self.error.emit(f"Error reading serial data: {exc}")
-
     def connect_serial(self):
         """Reconnect the serial port if it has been closed."""
         if not self.serial_connection.is_open:
@@ -72,8 +85,8 @@ class JoystickRawHandler(QObject):
     def close(self):
         """Stop background reading and close the serial connection."""
         self._stop.set()
-        if self.reading_thread.is_alive():
-            self.reading_thread.join()
+        if self.reading_thread.isRunning():
+            self.reading_thread.wait()
         if self.serial_connection.is_open:
             self.serial_connection.close()
 
