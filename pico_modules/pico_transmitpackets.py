@@ -83,8 +83,8 @@ class CRSFPacketProcessor(QObject):
                 )
             )
             if self.serial.open(QIODevice.ReadWrite):
-                logger.info(
-                    "Connected to %s at %s baud.", self.serial_port, self.baudrate
+                print(
+                    f"Connected to {self.serial_port} at {self.baudrate} baud."
                 )
             else:
                 logger.error(
@@ -224,10 +224,6 @@ class CRSFPacketProcessor(QObject):
                         len(self._rx_buffer),
                     )
                     self._rx_buffer = self._rx_buffer[-512:]
-                # Debug: sample raw telemetry bytes to reduce log load
-                self._dbg_ctr = getattr(self, "_dbg_ctr", 0) + 1
-                if self._dbg_ctr % 20 == 0:
-                    logger.debug("Telemetry raw data: %s", new_data.hex())
 
             # Process packets while a complete frame is present in the buffer
             while True:
@@ -266,9 +262,6 @@ class CRSFPacketProcessor(QObject):
                     != self._rx_buffer[frame_end - 1]
                 ):
                     # CRC mismatch means the packet is corrupt and cannot be parsed
-                    logger.debug(
-                        "Telemetry CRC mismatch; dropping byte and resynchronising"
-                    )
                     del self._rx_buffer[0]
                     continue
 
@@ -283,10 +276,7 @@ class CRSFPacketProcessor(QObject):
                 if packet_type == 0x3A:
                     continue
 
-                # Debug: log each decoded telemetry packet with its type
-                logger.debug(
-                    "Telemetry packet 0x%02X: %s", packet_type, packet.hex()
-                )
+                # Telemetry packets are processed without verbose debug logging
 
                 if packet_type == 0x14:
                     self.decode_link_statistics(packet)
@@ -300,11 +290,7 @@ class CRSFPacketProcessor(QObject):
                     self.decode_custom(packet)
                 else:
                     # Unknown packet type encountered
-                    logger.debug(
-                        "Unknown telemetry packet type 0x%02X: %s",
-                        packet_type,
-                        packet.hex(),
-                    )
+                    pass
 
         except Exception as e:
             logger.exception("Error reading serial data")
