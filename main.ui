@@ -2754,7 +2754,9 @@ background-repeat: no-repeat;</string>
                          <property name="minimumSize">
                           <size>
                            <width>0</width>
+
                            <height>720</height>
+
                           </size>
                          </property>
                          <widget class="QFrame" name="frame_2">
@@ -2763,7 +2765,7 @@ background-repeat: no-repeat;</string>
                             <x>-1</x>
                             <y>-1</y>
                             <width>960</width>
-                            <height>720</height>
+                            <height>820</height>
                            </rect>
                           </property>
                           <property name="frameShape">
@@ -2787,6 +2789,19 @@ background-repeat: no-repeat;</string>
                            <property name="text">
                             <string/>
                            </property>
+                         </widget>
+                         <widget class="QWidget" name="videoSpacer" native="true">
+                          <property name="geometry">
+                           <rect>
+                            <x>0</x>
+                            <y>720</y>
+                            <width>960</width>
+                            <height>100</height>
+                           </rect>
+                          </property>
+                          <property name="styleSheet">
+                           <string notr="true">background-color: black;</string>
+                          </property>
                          </widget>
                          <widget class="QWidget" name="airspeedosd" native="true">
                           <property name="geometry">
