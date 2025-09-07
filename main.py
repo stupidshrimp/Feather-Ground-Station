@@ -4,7 +4,7 @@ import logging
 
 logging.basicConfig(
     filename="debug.log",
-    level=logging.DEBUG,
+    level=logging.ERROR,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
