@@ -22,7 +22,7 @@
   const zoom = parseFloat(params.get('zoom')) || 2;
 
   try {
-    const res = await fetch('naip.pmtiles', {method: 'HEAD'});
+    const res = await fetch('map1.pmtiles', {method: 'HEAD'});
     if (!res.ok) throw new Error('missing');
   } catch (err) {
     document.getElementById('missing').style.display = 'block';
@@ -39,7 +39,7 @@
       sources: {
         satellite: {
           type: 'raster',
-          url: 'pmtiles://naip.pmtiles',
+          url: 'pmtiles://map1.pmtiles',
           tileSize: 256
         }
       },
