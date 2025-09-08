@@ -116,7 +116,8 @@ class VideoFeed:
         ----------
         preferred_index: int, optional
             Index probed first. Defaults to ``1`` to prefer the external VTX
-            capture device.
+            capture device. Index ``0``, which usually maps to a laptop's
+            internal webcam, is ignored.
         max_index: int, optional
             Upper bound (exclusive) for probing additional indices.
 
@@ -127,7 +128,11 @@ class VideoFeed:
             could be opened.
         """
 
-        indices = [preferred_index] + [i for i in range(max_index) if i != preferred_index]
+        # ``0`` is typically the laptop's integrated webcam.  Skip it so that
+        # automatic detection will only consider external capture devices.  If a
+        # caller explicitly wants to use the internal webcam they can pass
+        # ``device_index=0`` when constructing :class:`VideoFeed`.
+        indices = [preferred_index] + [i for i in range(1, max_index) if i != preferred_index]
         for index in indices:
             try:
                 cap = cv2.VideoCapture(index)
@@ -149,7 +154,7 @@ class VideoFeed:
         device_index: int, optional
             Index of the capture device to open. If ``None`` the
             :meth:`detect_device_index` helper is used which prefers external
-            devices over the laptop's integrated camera.
+            devices and skips the laptop's integrated webcam.
         """
 
         self.label = VideoLabel
