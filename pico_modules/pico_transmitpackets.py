@@ -244,6 +244,8 @@ class CRSFPacketProcessor(QObject):
             # without producing verbose serial output.
             new_data = bytes(self.serial.readAll())
             if new_data:
+                # Temporary debug output of raw incoming telemetry bytes
+                print(f"TX raw bytes: {new_data.hex()}")
                 self._rx_buffer.extend(new_data)
                 # Prevent unbounded growth if we fall behind
                 MAX_BUF = 8192
