@@ -47,17 +47,36 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QPushButton,
     QMessageBox,
+    QSizeGrip,
+    QGraphicsDropShadowEffect,
 )
-from PySide6.QtCore import Qt, QTimer, QMetaObject, Slot, QUrl
+from PySide6.QtCore import (
+    Qt,
+    QTimer,
+    QMetaObject,
+    Slot,
+    QUrl,
+    QEvent,
+    QPropertyAnimation,
+    QEasingCurve,
+    QParallelAnimationGroup,
+)
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtGui import QCursor
+from PySide6.QtGui import QCursor, QIcon, QColor
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from serial.tools import list_ports
 
-from modules import *
+
+class _MainWindowPlaceholder:
+    pass
+
+
+MainWindow = _MainWindowPlaceholder
+from modules.app_settings import Settings
+from modules.ui_functions import UIFunctions
+from widgets.custom_grips import CustomGrip
 from ui_mainwindow import Ui_MainWindow
-from widgets import *
 from widgets.input_line import InputLine
 from widgets.throttle_widget import ThrottleWidget
 
@@ -1264,7 +1283,8 @@ class MainWindow(QMainWindow):
             thread.wait()
         self.cleanup()
         super().closeEvent(event)
-        
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
