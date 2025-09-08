@@ -75,7 +75,6 @@ class _MainWindowPlaceholder:
 MainWindow = _MainWindowPlaceholder
 from modules.app_settings import Settings
 from modules.ui_functions import UIFunctions
-from widgets.custom_grips import CustomGrip
 from ui_mainwindow import Ui_MainWindow
 from widgets.input_line import InputLine
 from widgets.throttle_widget import ThrottleWidget
