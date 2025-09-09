@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QRect
+from PySide6.QtCore import Qt, QRect, QSize
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor
 from PySide6.QtWidgets import QWidget
 
@@ -14,6 +14,14 @@ class ThrottleWidget(QWidget):
         """Set the throttle level as a percentage from 0 to 100."""
         self._percent = max(0.0, min(100.0, float(percent)))
         self.update()
+
+    def sizeHint(self):  # noqa: D401 - brief docstring inherited
+        """Return a sensible default size for layouts."""
+        return QSize(40, 150)
+
+    def minimumSizeHint(self):  # noqa: D401 - brief docstring inherited
+        """Return the minimum usable size for the widget."""
+        return QSize(20, 75)
 
     def paintEvent(self, event):  # noqa: N802 - Qt override naming
         painter = QPainter(self)

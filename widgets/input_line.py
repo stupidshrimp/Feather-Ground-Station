@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -19,6 +19,18 @@ class InputLine(QWidget):
     def setValue(self, value: float) -> None:
         self._value = max(-1.0, min(1.0, float(value)))
         self.update()
+
+    def sizeHint(self):  # noqa: D401 - brief docstring inherited
+        """Return a default size that suits the current orientation."""
+        if self.orientation == Qt.Vertical:
+            return QSize(20, 100)
+        return QSize(100, 20)
+
+    def minimumSizeHint(self):  # noqa: D401 - brief docstring inherited
+        """Return the minimum size for the widget based on orientation."""
+        if self.orientation == Qt.Vertical:
+            return QSize(10, 50)
+        return QSize(50, 10)
 
     def paintEvent(self, event):  # noqa: N802 - Qt override naming
         painter = QPainter(self)
