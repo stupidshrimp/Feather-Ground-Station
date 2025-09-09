@@ -281,10 +281,13 @@ class MainWindow(QMainWindow):
         self.current_altitude = None
         self.current_airspeed = None
 
-        # Label/OSD updates are event-driven and triggered by telemetry
-        # packets to avoid unnecessary 10ms polling. When telemetry data
-        # arrives, ``handle_telemetry`` schedules ``update_labels`` via
-        # ``QMetaObject.invokeMethod`` to keep the UI responsive.
+        # Timer used to refresh labels/OSD widgets at a fixed rate. Telemetry
+        # packets only update the cached values above; the GUI is refreshed by
+        # this timer regardless of packet arrival rate.
+        self.label_update_timer = QTimer(self)
+        self.label_update_timer.timeout.connect(self.update_labels)
+        # Roughly 60 Hz update rate
+        self.label_update_timer.start(16)
 
         # Timer for transmitting data (default from config)
         self.transmit_timer = QTimer(self)
@@ -531,6 +534,9 @@ class MainWindow(QMainWindow):
     @Slot()
     def update_labels(self) -> None:
         """Update GUI labels using joystick inputs and refresh OSD widgets."""
+
+        # Check for any telemetry-based warnings
+        self.check_warnings()
 
         # ------------------------------------------------------------------
         # Joystick values update the label texts
@@ -850,11 +856,6 @@ class MainWindow(QMainWindow):
             self.set_label(self.ui.snrLabel, "SNR", cat, color)
             cat, color = self.classify_snr(downlink_snr)
             self.set_label(self.ui.downlinkSnrLabel, "Downlink SNR", cat, color)
-
-        # Schedule a label/OSD refresh on the GUI thread. This ensures that
-        # updates triggered by telemetry packets do not block the interface.
-        self.check_warnings()
-        QMetaObject.invokeMethod(self, "update_labels", Qt.QueuedConnection)
 
     def transmit_data(self):
         """
