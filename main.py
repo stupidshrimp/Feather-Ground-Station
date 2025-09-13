@@ -386,8 +386,8 @@ class MainWindow(QMainWindow):
         # this timer regardless of packet arrival rate.
         self.label_update_timer = QTimer(self)
         self.label_update_timer.timeout.connect(self.update_labels)
-        # Roughly 60 Hz update rate
-        self.label_update_timer.start(16)
+        # Disable the 60 Hz update cap and refresh as fast as the event loop allows
+        self.label_update_timer.start(0)
 
         # Timer for transmitting data (default from config)
         self.transmit_timer = QTimer(self)
