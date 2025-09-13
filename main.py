@@ -130,7 +130,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineProfile
-from PySide6.QtGui import QCursor, QIcon, QColor
+from PySide6.QtGui import QCursor, QIcon, QColor, QShortcut, QKeySequence
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 import shiboken6
 
@@ -371,6 +371,10 @@ class MainWindow(QMainWindow):
         self.throttle_ramp_timer.timeout.connect(self.update_throttle)
         # Update roughly 20 times a second
         self.throttle_ramp_timer.start(50)
+
+        # Global shortcut to immediately cut the throttle
+        self.throttle_cut_shortcut = QShortcut(QKeySequence(Qt.Key_Space), self)
+        self.throttle_cut_shortcut.activated.connect(self.cut_throttle)
 
         # Variables updated from telemetry packets
         self.telemetry_pitch = None
@@ -678,6 +682,12 @@ class MainWindow(QMainWindow):
         if self.telemetry_yaw is not None:
             self.compass_osd.setYaw(self.telemetry_yaw)
 
+    def cut_throttle(self) -> None:
+        """Immediately drop the throttle to zero."""
+        self.target_throttle_percent = 0
+        self.throttle_percent = 0
+        self.throttle_indicator.setValue(self.throttle_percent)
+
     def keyPressEvent(self, event):  # noqa: N802 - Qt override naming
         mapping = {
             Qt.Key_A: 25,
@@ -685,12 +695,7 @@ class MainWindow(QMainWindow):
             Qt.Key_D: 75,
             Qt.Key_F: 100,
         }
-        if event.key() == Qt.Key_Space:
-            self.target_throttle_percent = 0
-            self.throttle_percent = 0
-            self.throttle_indicator.setValue(self.throttle_percent)
-            event.accept()
-        elif event.key() in mapping:
+        if event.key() in mapping:
             self.target_throttle_percent = mapping[event.key()]
             event.accept()
         else:
