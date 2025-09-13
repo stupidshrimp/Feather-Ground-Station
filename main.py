@@ -386,9 +386,8 @@ class MainWindow(QMainWindow):
         # this timer regardless of packet arrival rate.
         self.label_update_timer = QTimer(self)
         self.label_update_timer.timeout.connect(self.update_labels)
-        # Refresh labels/OSD widgets at a rate capped at 150 Hz to limit GUI update load
-        interval_ms = max(self.crsf_cfg.get("packet_interval", 7), round(1000 / 150))
-        self.label_update_timer.start(interval_ms)
+
+        self.label_update_timer.start(0)
 
         # Timer for transmitting data (default from config)
         self.transmit_timer = QTimer(self)
