@@ -321,6 +321,9 @@ class MainWindow(QMainWindow):
                 self.joystick = JoystickRawHandler(
                     port=self.joystick_cfg.get("port"),
                     baudrate=self.joystick_cfg.get("baudrate"),
+                    deadzone=self.joystick_cfg.get("deadzone", 0),
+                    sensitivity=self.joystick_cfg.get("sensitivity", 100),
+                    smoothing=self.joystick_cfg.get("smoothing", 0),
                 )
                 self.joystick.error.connect(self.handle_worker_error)
             except Exception as e:
@@ -1120,8 +1123,7 @@ class MainWindow(QMainWindow):
         dz_row.addWidget(QLabel("Deadzone (%)"))
         self.deadzone_slider = QSlider(Qt.Horizontal)
         self.deadzone_slider.setRange(0, 100)
-        self.deadzone_slider.setValue(0)
-        self.deadzone_slider.setEnabled(False)
+        self.deadzone_slider.setValue(self.joystick_cfg.get("deadzone", 0))
         dz_row.addWidget(self.deadzone_slider)
         self.deadzone_value_label = QLabel(str(self.deadzone_slider.value()))
         dz_row.addWidget(self.deadzone_value_label)
@@ -1131,12 +1133,21 @@ class MainWindow(QMainWindow):
         sens_row.addWidget(QLabel("Sensitivity (%)"))
         self.sensitivity_slider = QSlider(Qt.Horizontal)
         self.sensitivity_slider.setRange(1, 200)
-        self.sensitivity_slider.setValue(100)
-        self.sensitivity_slider.setEnabled(False)
+        self.sensitivity_slider.setValue(self.joystick_cfg.get("sensitivity", 100))
         sens_row.addWidget(self.sensitivity_slider)
         self.sensitivity_value_label = QLabel(str(self.sensitivity_slider.value()))
         sens_row.addWidget(self.sensitivity_value_label)
         control_layout.addLayout(sens_row)
+
+        smooth_row = QHBoxLayout()
+        smooth_row.addWidget(QLabel("Smoothing (%)"))
+        self.smoothing_slider = QSlider(Qt.Horizontal)
+        self.smoothing_slider.setRange(0, 100)
+        self.smoothing_slider.setValue(self.joystick_cfg.get("smoothing", 0))
+        smooth_row.addWidget(self.smoothing_slider)
+        self.smoothing_value_label = QLabel(str(self.smoothing_slider.value()))
+        smooth_row.addWidget(self.smoothing_value_label)
+        control_layout.addLayout(smooth_row)
         add_separator()
 
         # VTX settings (video receiver is treated as a camera device, so no
@@ -1220,6 +1231,9 @@ class MainWindow(QMainWindow):
         self.control_port_combo.currentTextChanged.connect(self.on_control_port_selected)
         self.elrs_port_combo.currentTextChanged.connect(self.on_elrs_port_selected)
         self.packet_interval_edit.editingFinished.connect(self.on_packet_interval_changed)
+        self.deadzone_slider.valueChanged.connect(self.on_deadzone_changed)
+        self.sensitivity_slider.valueChanged.connect(self.on_sensitivity_changed)
+        self.smoothing_slider.valueChanged.connect(self.on_smoothing_changed)
         self.stall_speed_slider.valueChanged.connect(self.on_stall_speed_changed)
         self.stall_alt_slider.valueChanged.connect(self.on_stall_alt_changed)
         self.alt_alarm_alt_slider.valueChanged.connect(self.on_alt_alarm_alt_changed)
@@ -1268,6 +1282,9 @@ class MainWindow(QMainWindow):
                 self.joystick = JoystickRawHandler(
                     port=port,
                     baudrate=self.joystick_cfg.get("baudrate"),
+                    deadzone=self.joystick_cfg.get("deadzone", 0),
+                    sensitivity=self.joystick_cfg.get("sensitivity", 100),
+                    smoothing=self.joystick_cfg.get("smoothing", 0),
                 )
             except Exception as e:
                 print(f"Failed to initialize joystick: {e}")
@@ -1319,6 +1336,27 @@ class MainWindow(QMainWindow):
         if interval:
             freq = 1000 / interval
         self.pico_rate_label.setText(f"PICO writing packets at {freq:.0f} Hz.")
+
+    def on_deadzone_changed(self, value: int):
+        self.joystick_cfg["deadzone"] = value
+        self.deadzone_value_label.setText(str(value))
+        if self.joystick:
+            self.joystick.set_deadzone(value)
+        save_config(self.config)
+
+    def on_sensitivity_changed(self, value: int):
+        self.joystick_cfg["sensitivity"] = value
+        self.sensitivity_value_label.setText(str(value))
+        if self.joystick:
+            self.joystick.set_sensitivity(value)
+        save_config(self.config)
+
+    def on_smoothing_changed(self, value: int):
+        self.joystick_cfg["smoothing"] = value
+        self.smoothing_value_label.setText(str(value))
+        if self.joystick:
+            self.joystick.set_smoothing(value)
+        save_config(self.config)
 
     def on_stall_speed_changed(self, value: int):
         self.warning_cfg["stall_airspeed"] = value

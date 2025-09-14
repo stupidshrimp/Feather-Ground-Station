@@ -45,7 +45,7 @@ class JoystickRawHandler(QObject):
 
     error = Signal(str)
 
-    def __init__(self, port, baudrate=9600, deadzone=0, sensitivity=100):
+    def __init__(self, port, baudrate=9600, deadzone=0, sensitivity=100, smoothing=0):
         super().__init__()
         try:
             self.serial_connection = serial.Serial(port, baudrate=baudrate, timeout=1)
@@ -58,6 +58,7 @@ class JoystickRawHandler(QObject):
         self.pitch = 512
         self.deadzone = deadzone  # percent
         self.sensitivity = sensitivity  # percent
+        self.smoothing = smoothing  # percent
 
         # Event used to signal the reading thread to stop
         self._stop = threading.Event()
@@ -72,6 +73,9 @@ class JoystickRawHandler(QObject):
 
     def set_sensitivity(self, percent):
         self.sensitivity = max(1, int(percent))
+
+    def set_smoothing(self, percent):
+        self.smoothing = max(0, min(100, int(percent)))
 
     # ------------------------------------------------------------------
     # Serial helpers
@@ -104,13 +108,33 @@ class JoystickRawHandler(QObject):
 
         return x, y
 
+    def _apply_deadzone_sensitivity(self, value):
+        """Apply deadzone and sensitivity to a raw axis value."""
+        center = 512
+        delta = value - center
+        max_delta = 512
+        dz = self.deadzone / 100 * max_delta
+        if abs(delta) <= dz:
+            delta = 0
+        else:
+            sign = 1 if delta > 0 else -1
+            delta = sign * ((abs(delta) - dz) / (max_delta - dz) * max_delta)
+        delta *= self.sensitivity / 100
+        delta = max(-max_delta, min(max_delta, delta))
+        return center + delta
+
     def get_raw_values(self):
-        """Return the most recent raw pitch and roll values."""
+        """Return the most recent processed pitch and roll values."""
         while not self.data_queue.empty():
             raw_line = self.data_queue.get()
             try:
-                self.roll, self.pitch = self._parse_line(raw_line)
-                print(f"Flight stick raw X={self.roll} Y={self.pitch}")
+                raw_roll, raw_pitch = self._parse_line(raw_line)
+                print(f"Flight stick raw X={raw_roll} Y={raw_pitch}")
+                proc_roll = self._apply_deadzone_sensitivity(raw_roll)
+                proc_pitch = self._apply_deadzone_sensitivity(raw_pitch)
+                alpha = 1.0 - (self.smoothing / 100.0)
+                self.roll += alpha * (proc_roll - self.roll)
+                self.pitch += alpha * (proc_pitch - self.pitch)
             except ValueError:
                 # Ignore unrelated lines such as button events
                 continue
