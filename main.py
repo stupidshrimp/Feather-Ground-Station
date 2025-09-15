@@ -714,7 +714,8 @@ class MainWindow(QMainWindow):
         """Gradually move the throttle toward its target value."""
         if self.throttle_percent == self.target_throttle_percent:
             return
-        step = 5
+        # Use a larger step so the throttle reaches the target value more quickly
+        step = 20
         if self.throttle_percent < self.target_throttle_percent:
             self.throttle_percent = min(
                 self.throttle_percent + step, self.target_throttle_percent
