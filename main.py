@@ -668,7 +668,18 @@ class MainWindow(QMainWindow):
         if self.sortie_recording:
             return
 
-        os.makedirs(self.sortie_directory, exist_ok=True)
+        try:
+            os.makedirs(self.sortie_directory, exist_ok=True)
+        except OSError as exc:
+            logging.error(
+                "Failed to create sortie directory %s: %s", self.sortie_directory, exc
+            )
+            QMessageBox.critical(
+                self,
+                "Recording Error",
+                f"Could not create the sortie data folder:\n{exc}",
+            )
+            return
         date_str = datetime.now().strftime("%m-%d-%Y")
         pattern = re.compile(rf"{re.escape(date_str)}-sortie_(\\d+)\\.csv$")
 
