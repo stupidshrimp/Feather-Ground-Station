@@ -149,9 +149,6 @@ class DataPage:
         signal_layout.addWidget(self.snr_plot, 1, 1)
         signal_layout.addWidget(self.downlink_snr_plot, 1, 2)
 
-        self.packet_rate_label = QLabel("Packets Received Rate: 0 Hz")
-        layout.addWidget(self.packet_rate_label)
-
     def _init_data_storage(self) -> None:
         max_points = self._MAX_POINTS
         self._x_values = np.linspace(-(max_points - 1), 0, max_points, dtype=np.float32)
@@ -202,18 +199,9 @@ class DataPage:
         self._ui.stackedWidget.currentChanged.connect(self._on_page_changed)
         self._on_page_changed(self._ui.stackedWidget.currentIndex())
 
-        self.packet_rate = 0
-        self.packet_count = 0
-        self.packet_rate_timer = QTimer(self._main_window)
-        self.packet_rate_timer.timeout.connect(self.update_packet_rate)
-        self.packet_rate_timer.start(1000)
-
     # ------------------------------------------------------------------
     # Data update methods
     # ------------------------------------------------------------------
-    def record_packet(self) -> None:
-        self.packet_count += 1
-
     def add_attitude(self, pitch: float, roll: float, yaw: float) -> None:
         self.pitch_series.append(pitch)
         self.roll_series.append(roll)
@@ -266,13 +254,5 @@ class DataPage:
                 self.update_graphs()
         else:
             self.graph_timer.stop()
-
-    def update_packet_rate(self) -> None:
-        self.packet_rate_label.setText(
-            f"Packets Received Rate: {self.packet_rate} Hz"
-        )
-        self.packet_rate = self.packet_count
-        self.packet_count = 0
-
 
 __all__ = ["DataPage"]

@@ -1110,7 +1110,6 @@ class MainWindow(QMainWindow):
         # Temporarily silence telemetry debug output
         # if packet_type != "link_stats":
         #     print(f"Telemetry {packet_type}: {values}")
-        self.data_page.record_packet()
         self.last_telemetry_time = time.monotonic()
         self._update_sortie_button_availability()
         now = self.last_telemetry_time
