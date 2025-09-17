@@ -572,6 +572,7 @@ class MainWindow(QMainWindow):
                         child_widget.setParent(frame)
                 old_signal_layout.setParent(None)
 
+
         # Build a container for the signal health labels so they occupy the
         # first section of the column before the telemetry statistics widget.
         signal_container = QFrame(frame)
