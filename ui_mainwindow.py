@@ -1439,13 +1439,9 @@ class Ui_MainWindow(object):
         self.commandVideoSpacer.setObjectName(u"commandVideoSpacer")
         self.commandVideoSpacer.setGeometry(QRect(0, 720, 960, 120))
         self.controlInputsLayout = QHBoxLayout(self.commandVideoSpacer)
-        self.controlInputsLayout.setSpacing(24)
+        self.controlInputsLayout.setSpacing(16)
         self.controlInputsLayout.setObjectName(u"controlInputsLayout")
-        self.controlInputsLayout.setContentsMargins(0, 0, 0, 0)
-        self.controlInputsLeftSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.controlInputsLayout.addItem(self.controlInputsLeftSpacer)
-
+        self.controlInputsLayout.setContentsMargins(12, 0, 12, 0)
         self.controlInputsColumn = QVBoxLayout()
         self.controlInputsColumn.setSpacing(8)
         self.controlInputsColumn.setObjectName(u"controlInputsColumn")
@@ -1461,7 +1457,7 @@ class Ui_MainWindow(object):
         self.controlInputsColumn.addWidget(self.InputsLabel)
 
         self.controlInputsRow = QHBoxLayout()
-        self.controlInputsRow.setSpacing(24)
+        self.controlInputsRow.setSpacing(16)
         self.controlInputsRow.setObjectName(u"controlInputsRow")
         self.controlInputsRow.setContentsMargins(0, 0, 0, 0)
         self.pitchInput = QWidget(self.commandVideoSpacer)
