@@ -2834,7 +2834,7 @@ background-repeat: no-repeat;</string>
                            <rect>
                             <x>978</x>
                             <y>-1</y>
-                            <width>882</width>
+                            <width>600</width>
                             <height>381</height>
                            </rect>
                           </property>
@@ -2849,7 +2849,7 @@ background-repeat: no-repeat;</string>
                             <rect>
                              <x>-1</x>
                              <y>-1</y>
-                             <width>882</width>
+                             <width>600</width>
                              <height>381</height>
                             </rect>
                            </property>
@@ -2863,7 +2863,7 @@ background-repeat: no-repeat;</string>
                            <rect>
                             <x>978</x>
                             <y>381</y>
-                            <width>882</width>
+                            <width>600</width>
                             <height>520</height>
                            </rect>
                           </property>
