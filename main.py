@@ -650,27 +650,40 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 8, 16, 8)
         layout.setSpacing(6)
 
-        header_layout = QHBoxLayout()
+        header_container = QWidget(sorties_frame)
+        header_container.setObjectName("sortiesHeader")
+        header_container.setSizePolicy(
+            QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        )
+
+        header_layout = QHBoxLayout(header_container)
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(12)
 
-        sorties_title = QLabel("Sorties", sorties_frame)
+        sorties_title = QLabel("Sorties", header_container)
         sorties_title.setObjectName("sortiesTitle")
         sorties_title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         sorties_title.setFont(self.ui.signalHealthTitle.font())
         sorties_title.setStyleSheet("color: white;")
+        sorties_title.setSizePolicy(
+            QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        )
         header_layout.addWidget(sorties_title)
 
         header_layout.addStretch()
 
-        self.ui.sortieRecordButton = QPushButton("Start Recording", sorties_frame)
+        self.ui.sortieRecordButton = QPushButton("Start Recording", header_container)
         self.ui.sortieRecordButton.setObjectName("sortieRecordButton")
         self.ui.sortieRecordButton.setCursor(Qt.PointingHandCursor)
-        self.ui.sortieRecordButton.setMinimumHeight(36)
+        self.ui.sortieRecordButton.setFixedHeight(36)
         self.ui.sortieRecordButton.setMinimumWidth(160)
-        header_layout.addWidget(self.ui.sortieRecordButton)
+        header_layout.addWidget(
+            self.ui.sortieRecordButton, 0, Qt.AlignVCenter | Qt.AlignRight
+        )
 
-        layout.addLayout(header_layout)
+        header_container.setMinimumHeight(self.ui.sortieRecordButton.sizeHint().height())
+
+        layout.addWidget(header_container)
 
         self.sortie_status_label = QLabel("Status: Waiting for telemetry", sorties_frame)
         self.sortie_status_label.setAlignment(Qt.AlignCenter)
