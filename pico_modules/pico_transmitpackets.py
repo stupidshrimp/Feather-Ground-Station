@@ -2,6 +2,7 @@ from enum import IntEnum
 import struct
 import logging
 import time
+import math
 from PySide6.QtCore import QObject, Signal, QIODevice, QThread, Slot, QMetaObject, Qt
 
 from PySide6.QtSerialPort import QSerialPort, QSerialPortInfo
@@ -452,10 +453,12 @@ class CRSFPacketProcessor(QObject):
             logger.warning("Attitude length byte unexpected: %d", data[1])
             return
         try:
-            pitch, roll, yaw = struct.unpack(">hhh", data[3:9])
-            pitch /= 100
-            roll /= 100
-            yaw /= 100
+            pitch_raw, roll_raw, yaw_raw = struct.unpack(">hhh", data[3:9])
+
+            pitch = -(pitch_raw / 1000.0) * 180.0 / math.pi
+            roll = (roll_raw / 1000.0) * 180.0 / math.pi
+            yaw = (yaw_raw / 1000.0) * 180.0 / math.pi
+
             self.telemetry_ready.emit(("attitude", pitch, roll, yaw))
         except Exception:
             logger.exception("Failed to parse attitude packet")
