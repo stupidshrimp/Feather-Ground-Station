@@ -287,30 +287,40 @@ class MainWindow(QMainWindow):
             "a Modern UAS control platform"
         )
 
-        logo_path = os.path.join(os.path.dirname(__file__), "images", "logo.png")
-        if os.path.exists(logo_path):
+        logo_pixmap = QPixmap()
+        logo_path = None
+        for candidate in (
+            os.path.join(os.path.dirname(__file__), "images", "logo.png"),
+            os.path.join(os.path.dirname(__file__), "images", "images", "logo.png"),
+            ":/images/images/logo.png",
+        ):
+            test_pixmap = QPixmap(candidate)
+            if not test_pixmap.isNull():
+                logo_pixmap = test_pixmap
+                logo_path = candidate
+                break
+
+        if logo_path is not None:
+
             app_icon = QIcon(logo_path)
             self.setWindowIcon(app_icon)
             app = QApplication.instance()
             if app is not None:
                 app.setWindowIcon(app_icon)
 
-            logo_pixmap = QPixmap(logo_path)
-            if not logo_pixmap.isNull():
-                scaled_logo = logo_pixmap.scaled(
-                    48,
-                    48,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
+            scaled_logo = logo_pixmap.scaled(
+                48,
+                48,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
 
-                self._branding_logo = QLabel(self.ui.topLogoInfo)
-                self._branding_logo.setObjectName("titleLogo")
-                self._branding_logo.setGeometry(10, 4, 48, 42)
-                self._branding_logo.setPixmap(scaled_logo)
-                self._branding_logo.setAlignment(
-                    Qt.AlignmentFlag.AlignCenter
-                )
+            self._branding_logo = QLabel(self.ui.topLogoInfo)
+            self._branding_logo.setObjectName("titleLogo")
+            self._branding_logo.setGeometry(10, 4, 48, 42)
+            self._branding_logo.setPixmap(scaled_logo)
+            self._branding_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
 
         # Remove unwanted side tabs
         self.ui.btn_save.hide()
