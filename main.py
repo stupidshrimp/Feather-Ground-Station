@@ -92,7 +92,13 @@ class RangeRequestHandler(SimpleHTTPRequestHandler):
             chunk = source.read(min(bufsize, length))
             if not chunk:
                 break
-            output.write(chunk)
+            try:
+                output.write(chunk)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as exc:
+                logging.debug(
+                    "Client disconnected while streaming %s: %s", self.path, exc
+                )
+                break
             length -= len(chunk)
 
 
