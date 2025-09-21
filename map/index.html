@@ -50,19 +50,49 @@
       style,
       center: [lon, lat],
       zoom,
+      maxTileCacheSize: 256,
       ...options
     });
 
     const marker = new maplibregl.Marker({color: 'red'}).setLngLat([lon, lat]).addTo(map);
-    const MAX_TRAIL_POINTS = 500;
+    const MAX_TRAIL_POINTS = 250;
+    const MIN_UPDATE_INTERVAL_MS = 250;
     const trail = {
       type: 'Feature',
       geometry: { type: 'LineString', coordinates: [[lon, lat]] }
     };
 
+    let isMapReady = false;
+    let pendingCoord = null;
+    let lastUpdateTime = 0;
+
+    const applyUpdate = (coord) => {
+      const last = trail.geometry.coordinates[trail.geometry.coordinates.length - 1];
+      if (last && last[0] === coord[0] && last[1] === coord[1]) {
+        return;
+      }
+
+      marker.setLngLat(coord);
+      trail.geometry.coordinates.push(coord);
+      if (trail.geometry.coordinates.length > MAX_TRAIL_POINTS) {
+        trail.geometry.coordinates.splice(0, trail.geometry.coordinates.length - MAX_TRAIL_POINTS);
+      }
+
+      const src = map.getSource('path');
+      if (src) {
+        src.setData(trail);
+      }
+    };
+
     map.on('load', () => {
       map.addSource('path', { type: 'geojson', data: trail });
       map.addLayer({ id: 'path', type: 'line', source: 'path', paint: { 'line-color': '#f00', 'line-width': 2 } });
+
+      isMapReady = true;
+      if (pendingCoord) {
+        applyUpdate(pendingCoord);
+        pendingCoord = null;
+      }
     });
 
     map.on('error', (event) => {
@@ -75,14 +105,27 @@
     });
 
     window.updateMarker = function(lat, lon) {
-      const coord = [lon, lat];
-      marker.setLngLat(coord);
-      trail.geometry.coordinates.push(coord);
-      if (trail.geometry.coordinates.length > MAX_TRAIL_POINTS) {
-        trail.geometry.coordinates.splice(0, trail.geometry.coordinates.length - MAX_TRAIL_POINTS);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return;
       }
-      const src = map.getSource('path');
-      if (src) src.setData(trail);
+
+      const coord = [lon, lat];
+      pendingCoord = coord;
+
+      if (!isMapReady) {
+        return;
+      }
+
+      const now = (typeof performance !== 'undefined' && performance.now)
+        ? performance.now()
+        : Date.now();
+      if (now - lastUpdateTime < MIN_UPDATE_INTERVAL_MS) {
+        return;
+      }
+
+      lastUpdateTime = now;
+      applyUpdate(coord);
+      pendingCoord = null;
     };
   };
 
