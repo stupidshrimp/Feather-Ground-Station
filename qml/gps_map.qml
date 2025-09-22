@@ -8,6 +8,10 @@ Item {
     width: 600
     height: 381
 
+    Component.onCompleted: {
+        console.log("gps_map.qml loaded")
+    }
+
     property real gpsLat: Number.NaN
     property real gpsLon: Number.NaN
     property bool followGps: true
