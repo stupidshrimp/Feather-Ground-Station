@@ -31,82 +31,6 @@
 
     const gps = L.circleMarker(lastFix, { radius: 6 }).addTo(map);
 
-    const params = new URLSearchParams(window.location.search);
-    const wsPort = params.get('wsPort');
-    let bridgeSocket = null;
-    let reconnectDelayMs = 1000;
-
-    function scheduleReconnect() {
-      if (!wsPort) {
-        return;
-      }
-      const delay = reconnectDelayMs;
-      reconnectDelayMs = Math.min(reconnectDelayMs * 2, 10000);
-      window.setTimeout(connectBridge, delay);
-    }
-
-    function handleBridgeMessage(event) {
-      let payload;
-      try {
-        payload = JSON.parse(event.data);
-      } catch (err) {
-        return;
-      }
-      if (!payload || typeof payload !== 'object') {
-        return;
-      }
-      switch (payload.type) {
-        case 'maxZoom': {
-          if ('zoom' in payload) {
-            setMaxZoom(Number(payload.zoom));
-          }
-          break;
-        }
-        case 'initialView': {
-          if ('lat' in payload && 'lon' in payload) {
-            setInitialView(Number(payload.lat), Number(payload.lon), Number(payload.zoom));
-          }
-          break;
-        }
-        case 'gpsUpdate': {
-          if ('lat' in payload && 'lon' in payload) {
-            const follow = payload.follow !== undefined ? Boolean(payload.follow) : true;
-            updateGPS(Number(payload.lat), Number(payload.lon), follow);
-          }
-          break;
-        }
-        default:
-          break;
-      }
-    }
-
-    function connectBridge() {
-      if (!wsPort) {
-        return;
-      }
-      try {
-        bridgeSocket = new WebSocket(`ws://127.0.0.1:${wsPort}`);
-      } catch (err) {
-        scheduleReconnect();
-        return;
-      }
-      bridgeSocket.addEventListener('open', function() {
-        reconnectDelayMs = 1000;
-      });
-      bridgeSocket.addEventListener('message', handleBridgeMessage);
-      bridgeSocket.addEventListener('close', function() {
-        bridgeSocket = null;
-        scheduleReconnect();
-      });
-      bridgeSocket.addEventListener('error', function() {
-        if (bridgeSocket) {
-          const socket = bridgeSocket;
-          bridgeSocket = null;
-          socket.close();
-        }
-      });
-    }
-
     window.setMaxZoom = function(zoom) {
       if (!Number.isFinite(zoom)) {
         return;
@@ -140,10 +64,6 @@
         map.setView(lastFix, map.getZoom(), { animate: false });
       }
     };
-
-    if (wsPort) {
-      connectBridge();
-    }
   </script>
 </body>
 </html>

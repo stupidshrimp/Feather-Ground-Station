@@ -72,11 +72,8 @@ from PySide6.QtCore import (
     QPropertyAnimation,
     QEasingCurve,
     QParallelAnimationGroup,
-    QUrlQuery,
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtNetwork import QHostAddress, QAbstractSocket
-from PySide6.QtWebSockets import QWebSocketServer, QWebSocket
 from PySide6.QtGui import QIcon, QShortcut, QKeySequence, QPixmap
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 import shiboken6
@@ -136,13 +133,6 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self._configure_metric_labels()
-
-        self._gps_map_socket_server: Optional[QWebSocketServer] = None
-        self._gps_map_socket_clients: set[QWebSocket] = set()
-        self._gps_map_last_max_zoom: Optional[float] = None
-        self._gps_map_last_initial_view: Optional[tuple[float, float, float]] = None
-        self._gps_map_last_fix: Optional[tuple[float, float]] = None
-        self._gps_map_last_follow: bool = False
 
         self.battery_percent_bar = None
         self.autopilot_time_label = None
@@ -218,7 +208,6 @@ class MainWindow(QMainWindow):
         self.config = load_config()
         self.map_cfg = self.config.setdefault("map", {})
         self._initialize_map_configuration()
-        self._gps_map_last_follow = self._gps_follow_enabled
         self.aircraft_cfg = self.config.setdefault("aircraft", {})
         self.aircraft_cfg.setdefault("battery_cells", "3s")
         self._battery_full_voltage = 0.0
@@ -2436,103 +2425,6 @@ class MainWindow(QMainWindow):
             return []
         return sorted(zoom_levels)
 
-    def _ensure_gps_map_socket_server(self) -> bool:
-        if self._gps_map_socket_server is not None:
-            return True
-
-        server = QWebSocketServer("FeatherGPSMapBridge", QWebSocketServer.NonSecureMode, self)
-        if not server.listen(QHostAddress.LocalHost, 0):
-            logging.error(
-                "Unable to start GPS map bridge: %s",
-                server.errorString() if server.errorString() else "Unknown error",
-            )
-            return False
-
-        server.newConnection.connect(self._on_gps_map_socket_connection)
-        self._gps_map_socket_server = server
-        return True
-
-    def _on_gps_map_socket_connection(self) -> None:
-        if self._gps_map_socket_server is None:
-            return
-
-        socket = self._gps_map_socket_server.nextPendingConnection()
-        if socket is None:
-            return
-
-        self._gps_map_socket_clients.add(socket)
-
-        def _remove_socket(s: QWebSocket = socket) -> None:
-            self._gps_map_socket_clients.discard(s)
-            s.deleteLater()
-
-        socket.disconnected.connect(_remove_socket)
-        socket.errorOccurred.connect(lambda _error, s=socket: _remove_socket(s))
-
-        if self._gps_map_last_max_zoom is not None:
-            self._gps_map_send_message({"type": "maxZoom", "zoom": self._gps_map_last_max_zoom}, socket)
-        if self._gps_map_last_initial_view is not None:
-            lat, lon, zoom = self._gps_map_last_initial_view
-            self._gps_map_send_message(
-                {"type": "initialView", "lat": lat, "lon": lon, "zoom": zoom},
-                socket,
-            )
-        if self._gps_map_last_fix is not None:
-            lat, lon = self._gps_map_last_fix
-            self._gps_map_send_message(
-                {
-                    "type": "gpsUpdate",
-                    "lat": lat,
-                    "lon": lon,
-                    "follow": bool(self._gps_map_last_follow),
-                },
-                socket,
-            )
-
-    def _gps_map_send_message(self, message: dict, target: Optional[QWebSocket] = None) -> None:
-        try:
-            payload = json.dumps(message)
-        except (TypeError, ValueError):
-            logging.debug("Ignoring unserializable GPS map payload: %r", message)
-            return
-
-        sockets: list[QWebSocket]
-        if target is not None:
-            sockets = [target]
-        else:
-            sockets = list(self._gps_map_socket_clients)
-
-        for socket in sockets:
-            if socket.state() == QAbstractSocket.ConnectedState:
-                socket.sendTextMessage(payload)
-
-    def _gps_map_set_max_zoom(self, zoom: float) -> None:
-        self._gps_map_last_max_zoom = float(zoom)
-        self._gps_map_send_message({"type": "maxZoom", "zoom": float(zoom)})
-
-    def _gps_map_set_initial_view(self, lat: float, lon: float, zoom: float) -> None:
-        self._gps_map_last_initial_view = (float(lat), float(lon), float(zoom))
-        self._gps_map_send_message(
-            {
-                "type": "initialView",
-                "lat": float(lat),
-                "lon": float(lon),
-                "zoom": float(zoom),
-            }
-        )
-
-    def _gps_map_send_fix(self, lat: float, lon: float, follow: bool) -> None:
-        self._gps_map_last_fix = (float(lat), float(lon))
-        self._gps_map_last_follow = bool(follow)
-        self._gps_map_send_message(
-            {
-                "type": "gpsUpdate",
-                "lat": float(lat),
-                "lon": float(lon),
-                "follow": bool(follow),
-            }
-        )
-
     def _setup_gps_map(self):
         container = self.ui.mapframe
         existing_layout = container.layout()
@@ -2572,21 +2464,7 @@ class MainWindow(QMainWindow):
         map_widget.setContextMenuPolicy(Qt.NoContextMenu)
         layout.addWidget(map_widget)
         map_widget.loadFinished.connect(self._on_gps_map_load_finished)
-        if not self._ensure_gps_map_socket_server():
-            if self._gps_map_placeholder_label is not None:
-                self._gps_map_placeholder_label.setText(
-                    "Unable to start GPS map bridge. Check application logs."
-                )
-            self._gps_map_widget = None
-            self._update_map_enabled_state()
-            return
-
-        url = QUrl(self._map_html_url)
-        query = QUrlQuery(url)
-        query.removeAllQueryItems("wsPort")
-        query.addQueryItem("wsPort", str(self._gps_map_socket_server.serverPort()))
-        url.setQuery(query)
-        map_widget.load(url)
+        map_widget.load(self._map_html_url)
         self._gps_map_widget = map_widget
 
         self._update_map_enabled_state()
@@ -2602,7 +2480,10 @@ class MainWindow(QMainWindow):
             return
 
         self._gps_map_ready = True
-        self._gps_map_set_max_zoom(self._map_max_zoom)
+        if self._gps_map_widget is not None:
+            self._gps_map_widget.page().runJavaScript(
+                f"window.setMaxZoom({int(self._map_max_zoom)});"
+            )
         self._apply_initial_map_view()
         self._sync_follow_state_to_map()
         if self._latest_gps_fix is not None:
@@ -2618,7 +2499,8 @@ class MainWindow(QMainWindow):
         zoom = float(self.map_cfg.get("zoom", self._map_initial_zoom))
         lat = float(center[0]) if len(center) >= 1 else self._map_initial_center[0]
         lon = float(center[1]) if len(center) >= 2 else self._map_initial_center[1]
-        self._gps_map_set_initial_view(lat, lon, zoom)
+        script = f"window.setInitialView({lat:.8f}, {lon:.8f}, {zoom});"
+        self._gps_map_widget.page().runJavaScript(script)
 
     def _sync_follow_state_to_map(self) -> None:
         if not self._gps_map_ready:
@@ -2630,7 +2512,9 @@ class MainWindow(QMainWindow):
     def _invoke_update_gps(self, lat: float, lon: float) -> None:
         if self._gps_map_widget is None or not self._gps_map_ready:
             return
-        self._gps_map_send_fix(lat, lon, self._gps_follow_enabled)
+        follow = "true" if self._gps_follow_enabled else "false"
+        script = f"window.updateGPS({lat:.8f}, {lon:.8f}, {follow});"
+        self._gps_map_widget.page().runJavaScript(script)
 
     def _push_gps_to_map(self):
         if not self.map_cfg.get("enabled", True):
@@ -2741,16 +2625,6 @@ class MainWindow(QMainWindow):
         if self.joystick:
             self.joystick.close()
             self.joystick = None
-        for socket in list(self._gps_map_socket_clients):
-            try:
-                socket.close()
-            except RuntimeError:
-                pass
-        self._gps_map_socket_clients.clear()
-        if self._gps_map_socket_server is not None:
-            self._gps_map_socket_server.close()
-            self._gps_map_socket_server.deleteLater()
-            self._gps_map_socket_server = None
     def closeEvent(self, event):
         """
         Releases resources when the window is closed.
