@@ -2457,7 +2457,7 @@ class MainWindow(QMainWindow):
         self.map_cfg.setdefault("zoom", 8)
 
         self._app_root = os.path.dirname(os.path.abspath(__file__))
-        self._map_tiles_directory = os.path.join(self._app_root, "map", "map1_tiles")
+        self._map_tiles_directory = os.path.join(self._app_root, "map", "map1_tiles_baked")
         self._map_tiles_available = os.path.isdir(self._map_tiles_directory)
 
         zoom_levels = self._detect_map_zoom_levels(self._map_tiles_directory) if self._map_tiles_available else []
