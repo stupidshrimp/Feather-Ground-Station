@@ -1901,10 +1901,18 @@ class MainWindow(QMainWindow):
 
         if not (self._map_tiles_available and self._map_html_available):
             self.map_enabled_checkbox.setEnabled(False)
-            self.map_follow_checkbox.setEnabled(False)
-            self.map_zoom_spin.setEnabled(False)
-            self.map_lat_spin.setEnabled(False)
-            self.map_lon_spin.setEnabled(False)
+            self.map_enabled_checkbox.setToolTip(
+                "Offline map assets are not available. Provide tiles and index.html to enable rendering."
+            )
+            for widget in (
+                self.map_follow_checkbox,
+                self.map_zoom_spin,
+                self.map_lat_spin,
+                self.map_lon_spin,
+            ):
+                widget.setToolTip(
+                    "GPS defaults can be edited now and will apply once map assets are installed."
+                )
 
         self.map_enabled_checkbox.toggled.connect(self.on_map_enabled_toggled)
         self.map_follow_checkbox.toggled.connect(self.on_map_follow_toggled)
@@ -2285,7 +2293,7 @@ class MainWindow(QMainWindow):
     def _initialize_map_configuration(self):
         self.map_cfg.setdefault("enabled", True)
         self.map_cfg.setdefault("follow", True)
-        self.map_cfg.setdefault("center", [41.818, -87.7855])
+        self.map_cfg.setdefault("center", [42.0467957, -87.816288])
         self.map_cfg.setdefault("zoom", 13)
 
         self._app_root = os.path.dirname(os.path.abspath(__file__))
