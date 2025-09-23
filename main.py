@@ -475,6 +475,7 @@ class MainWindow(QMainWindow):
         self._latest_gps_fix_seq = 0
         self._last_pushed_gps_fix_seq = 0
         self._gps_first_fix_sent = False
+        self._gps_has_lock: Optional[bool] = None
         self.current_altitude = None
         self.current_airspeed = None
         self.telemetry_state = {field: None for field in self._sortie_fields}
@@ -1573,9 +1574,16 @@ class MainWindow(QMainWindow):
             self.telemetry_state["ground_course"] = course
             self.telemetry_state["satellites"] = sats
             self.data_page.add_flight_metrics(alt, speed)
-            if lat_value is not None and lon_value is not None:
+            if (
+                lat_value is not None
+                and lon_value is not None
+                and not (lat_value == 0.0 and lon_value == 0.0)
+            ):
                 self._latest_gps_fix = (lat_value, lon_value)
                 self._latest_gps_fix_seq += 1
+                self._set_gps_lock_state(True)
+            else:
+                self._set_gps_lock_state(False)
         elif packet_type == "battery":
             if len(values) >= 3:
                 voltage, current, capacity = values[:3]
@@ -2485,6 +2493,7 @@ class MainWindow(QMainWindow):
                 f"window.setMaxZoom({int(self._map_max_zoom)});"
             )
         self._apply_initial_map_view()
+        self._sync_gps_lock_state_to_map()
         self._sync_follow_state_to_map()
         if self._latest_gps_fix is not None:
             lat, lon = self._latest_gps_fix
@@ -2509,12 +2518,40 @@ class MainWindow(QMainWindow):
             return
         self._invoke_update_gps(float(self._latest_gps_fix[0]), float(self._latest_gps_fix[1]))
 
-    def _invoke_update_gps(self, lat: float, lon: float) -> None:
+    def _invoke_update_gps(
+        self, lat: float, lon: float, *, force_follow: Optional[bool] = None
+    ) -> None:
         if self._gps_map_widget is None or not self._gps_map_ready:
             return
-        follow = "true" if self._gps_follow_enabled else "false"
+        if force_follow is None:
+            follow_enabled = self._gps_follow_enabled
+        else:
+            follow_enabled = force_follow
+        follow = "true" if follow_enabled else "false"
         script = f"window.updateGPS({lat:.8f}, {lon:.8f}, {follow});"
         self._gps_map_widget.page().runJavaScript(script)
+
+    def _sync_gps_lock_state_to_map(self) -> None:
+        if (
+            self._gps_has_lock is None
+            or self._gps_map_widget is None
+            or not self._gps_map_ready
+        ):
+            return
+        lock_state = "true" if self._gps_has_lock else "false"
+        self._gps_map_widget.page().runJavaScript(f"window.setGpsLock({lock_state});")
+
+    def _set_gps_lock_state(self, has_lock: bool) -> None:
+        if self._gps_has_lock == has_lock:
+            return
+        self._gps_has_lock = has_lock
+        if not has_lock:
+            self._latest_gps_fix = None
+            default_lat, default_lon = self._map_initial_center
+            self._invoke_update_gps(
+                float(default_lat), float(default_lon), force_follow=True
+            )
+        self._sync_gps_lock_state_to_map()
 
     def _push_gps_to_map(self):
         if not self.map_cfg.get("enabled", True):
