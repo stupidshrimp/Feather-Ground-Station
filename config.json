@@ -1,6 +1,6 @@
 {
     "joystick": {
-        "port": "Not connected",
+        "port": "COM5",
         "baudrate": 9600,
         "deadzone": 0,
         "sensitivity": 100,
@@ -8,7 +8,7 @@
         "smoothing": 0
     },
     "crsf": {
-        "port": "Not connected",
+        "port": "COM4",
         "baudrate": 921600,
         "packet_interval": 3
     },
@@ -31,9 +31,9 @@
             42.0467957,
             -87.816288
         ],
-        "zoom": 8,
-        "enabled": true,
-        "follow": true
+        "zoom": 13,
+        "enabled": false,
+        "follow": false
     },
     "aircraft": {
         "battery_cells": "3s"
