@@ -9,16 +9,35 @@
       height: 100%;
       margin: 0;
     }
+    #gpsStatus {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-family: sans-serif;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      z-index: 1000;
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="gpsStatus" role="status" aria-live="polite"></div>
   <script src="leaflet.js"></script>
   <script>
     const defaultCenter = [41.8781, -87.6298];
     const defaultZoom = 11;
     let maxAvailableZoom = 13;
     let lastFix = L.latLng(defaultCenter[0], defaultCenter[1]);
+    const gpsStatus = document.getElementById('gpsStatus');
 
     const map = L.map('map', { zoomControl: true, keepBuffer: 1 })
                  .setView(defaultCenter, defaultZoom);
@@ -62,6 +81,15 @@
       gps.setLatLng(lastFix);
       if (follow) {
         map.setView(lastFix, map.getZoom(), { animate: false });
+      }
+    };
+
+    window.setGpsLock = function(hasLock) {
+      if (hasLock) {
+        gpsStatus.style.display = 'none';
+      } else {
+        gpsStatus.textContent = 'No GPS lock';
+        gpsStatus.style.display = 'block';
       }
     };
   </script>
