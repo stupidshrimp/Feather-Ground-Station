@@ -2798,6 +2798,25 @@ class MainWindow(QMainWindow):
 
     def cleanup(self):
         """Clean up peripheral resources if they exist."""
+        video_feed = getattr(self, "video_feed", None)
+        if video_feed is not None:
+            video_feed.shutdown()
+            self.video_feed = None
+
+        processor = getattr(self, "crsf_processor", None)
+        if processor is not None:
+            thread = getattr(processor, "_thread", None)
+            if hasattr(processor, "close_serial"):
+                QMetaObject.invokeMethod(
+                    processor,
+                    "close_serial",
+                    Qt.BlockingQueuedConnection,
+                )
+            if thread is not None:
+                thread.quit()
+                thread.wait()
+            self.crsf_processor = None
+
         self.stop_sortie_recording()
         self.stop_debug_monitoring()
         self._destroy_gps_map_widget()
@@ -2806,18 +2825,11 @@ class MainWindow(QMainWindow):
         if self.joystick:
             self.joystick.close()
             self.joystick = None
+
     def closeEvent(self, event):
         """
         Releases resources when the window is closed.
         """
-        self.video_feed.shutdown()
-        if self.crsf_processor:
-            thread = self.crsf_processor._thread
-            QMetaObject.invokeMethod(
-                self.crsf_processor, "close_serial", Qt.BlockingQueuedConnection
-            )
-            thread.quit()
-            thread.wait()
         self.cleanup()
         super().closeEvent(event)
 
