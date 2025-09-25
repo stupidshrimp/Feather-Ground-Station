@@ -109,6 +109,7 @@ from config import load_config, save_config
 from modules.data_page import DataPage
 from modules.debug_page import DebugPage
 from modules.sorties_page import SortiesPage
+from modules.preflight_page import PreFlightChecklistPage
 
 
 def validate_port(name: str, port: str) -> bool:
@@ -284,6 +285,9 @@ class MainWindow(QMainWindow):
         # Rename side tab buttons
         self.ui.btn_new.setText("Command")
         self.ui.btn_widgets.setText("Configuration")
+
+        # Add Pre-flight checklist tab
+        self.preflight_page = PreFlightChecklistPage(self)
 
         # Add Data tab and associated graphs
         self.data_page = DataPage(self)
@@ -612,6 +616,7 @@ class MainWindow(QMainWindow):
         widgets.btn_home.clicked.connect(self.buttonClick)
         widgets.btn_widgets.clicked.connect(self.buttonClick)
         widgets.btn_new.clicked.connect(self.buttonClick)
+        widgets.btn_preflight.clicked.connect(self.buttonClick)
         widgets.btn_data.clicked.connect(self.buttonClick)
         widgets.btn_sorties.clicked.connect(self.buttonClick)
         widgets.btn_debug.clicked.connect(self.buttonClick)
@@ -2963,6 +2968,11 @@ class MainWindow(QMainWindow):
         if btnName == "btn_widgets":
             self.update_port_lists()
             widgets.stackedWidget.setCurrentWidget(widgets.configuration_page)
+            UIFunctions.resetStyle(self, btnName)
+            btn.setStyleSheet(UIFunctions.selectMenu(btn.styleSheet()))
+
+        if btnName == "btn_preflight":
+            widgets.stackedWidget.setCurrentWidget(widgets.preflight_page)
             UIFunctions.resetStyle(self, btnName)
             btn.setStyleSheet(UIFunctions.selectMenu(btn.styleSheet()))
 
