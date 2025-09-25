@@ -16,6 +16,7 @@ class CRSFPacketProcessor(QObject):
     TELEMETRY_SYNC = 0xEA  # Start byte used for telemetry frames
 
     telemetry_ready = Signal(object)
+    serial_data = Signal(object)
     channel_update = Signal(list)
     error = Signal(str)
 
@@ -256,6 +257,10 @@ class CRSFPacketProcessor(QObject):
             # without producing verbose serial output.
             new_data = bytes(self.serial.readAll())
             if new_data:
+                try:
+                    self.serial_data.emit(new_data)
+                except Exception:
+                    logger.debug("Serial data signal emit failed", exc_info=True)
                 self._rx_buffer.extend(new_data)
                 # Prevent unbounded growth if we fall behind
                 MAX_BUF = 8192

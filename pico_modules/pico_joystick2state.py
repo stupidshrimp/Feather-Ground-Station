@@ -129,7 +129,6 @@ class JoystickRawHandler(QObject):
             raw_line = self.data_queue.get()
             try:
                 raw_roll, raw_pitch = self._parse_line(raw_line)
-                print(f"Flight stick raw X={raw_roll} Y={raw_pitch}")
                 proc_roll = self._apply_deadzone_sensitivity(raw_roll)
                 proc_pitch = self._apply_deadzone_sensitivity(raw_pitch)
                 alpha = 1.0 - (self.smoothing / 100.0)
