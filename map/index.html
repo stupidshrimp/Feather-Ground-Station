@@ -55,7 +55,8 @@
         return;
       }
       maxAvailableZoom = Math.max(0, zoom);
-      tiles.setMaxZoom(maxAvailableZoom);
+      tiles.options.maxZoom = maxAvailableZoom;
+      tiles.redraw();
       if (map.setMaxZoom) {
         map.setMaxZoom(maxAvailableZoom);
       } else {
