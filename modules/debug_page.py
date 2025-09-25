@@ -91,6 +91,12 @@ class DebugPage:
         self.joystick_checkbox = QCheckBox("Joystick data")
         layout.addWidget(self.joystick_checkbox)
 
+        self.serial_all_checkbox = QCheckBox("Serial all")
+        layout.addWidget(self.serial_all_checkbox)
+
+        self.telemetry_all_checkbox = QCheckBox("Telemetry all")
+        layout.addWidget(self.telemetry_all_checkbox)
+
         button_row = QHBoxLayout()
         button_row.addStretch()
         self.monitor_button = QPushButton("Start Monitoring")
@@ -128,28 +134,46 @@ class DebugPage:
             name for name, checkbox in self._packet_checkboxes.items() if checkbox.isChecked()
         }
         include_joystick = self.joystick_checkbox.isChecked()
-        if not packet_selection and not include_joystick:
+        serial_all = self.serial_all_checkbox.isChecked()
+        telemetry_all = self.telemetry_all_checkbox.isChecked()
+        if not (packet_selection or include_joystick or serial_all or telemetry_all):
             self.append_message("Select at least one data source before monitoring.")
             return
 
         self.output_edit.clear()
         self.monitor_button.setEnabled(False)
-        self._main_window.start_debug_monitoring(packet_selection, include_joystick)
+        self._main_window.start_debug_monitoring(
+            packet_selection,
+            include_joystick,
+            serial_all,
+            telemetry_all,
+        )
 
     # ------------------------------------------------------------------
     # Methods invoked from the main window
     # ------------------------------------------------------------------
-    def begin_monitoring(self, packets: Iterable[str], include_joystick: bool) -> None:
+    def begin_monitoring(
+        self,
+        packets: Iterable[str],
+        include_joystick: bool,
+        serial_all: bool,
+        telemetry_all: bool,
+    ) -> None:
         self._monitoring = True
         self.monitor_button.setText("Stop Monitoring")
         self.monitor_button.setEnabled(True)
         self._packet_timestamps.clear()
         self._frequency_timer.start()
         self._update_frequency_label(datetime.now())
-        if packets or include_joystick:
-            enabled = ", ".join(sorted(packets))
+        if packets or include_joystick or serial_all or telemetry_all:
+            labels = [self._PACKET_LABELS.get(name, name) for name in packets]
             if include_joystick:
-                enabled = f"{enabled}, joystick" if enabled else "joystick"
+                labels.append("Joystick data")
+            if serial_all:
+                labels.append("Serial all")
+            if telemetry_all:
+                labels.append("Telemetry all")
+            enabled = ", ".join(sorted(labels, key=str.lower))
             self.append_message(f"Monitoring started for: {enabled}.")
         else:
             self.append_message("Monitoring started.")
@@ -233,6 +257,20 @@ class DebugPage:
         else:
             detail = " ".join(str(value) for value in values)
         self.output_edit.appendPlainText(f"[{timestamp}] {packet_type}: {detail}")
+
+    def log_serial_data(self, data: bytes) -> None:
+        if not self._monitoring or not data:
+            return
+
+        now = datetime.now()
+        self._packet_timestamps.append(now)
+        self._update_frequency_label(now)
+        timestamp = now.strftime("%H:%M:%S")
+        hex_repr = data.hex(" ")
+        ascii_repr = "".join(chr(b) if 32 <= b < 127 else "." for b in data)
+        self.output_edit.appendPlainText(
+            f"[{timestamp}] serial all: hex={hex_repr} ascii={ascii_repr}"
+        )
 
     def monitoring_active(self) -> bool:
         return self._monitoring

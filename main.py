@@ -301,6 +301,8 @@ class MainWindow(QMainWindow):
         self._debug_packets: set[str] = set()
         self._debug_monitoring = False
         self._debug_include_joystick = False
+        self._debug_serial_all = False
+        self._debug_telemetry_all = False
         # Disable telemetry packet debug logging by default; it can be toggled
         # explicitly if needed for troubleshooting.
         self._telemetry_debug_logging = False
@@ -470,6 +472,7 @@ class MainWindow(QMainWindow):
                 self.crsf_processor.telemetry_ready.connect(
                     self.handle_telemetry_wrapper
                 )
+                self.crsf_processor.serial_data.connect(self._handle_serial_debug)
                 self.crsf_processor.error.connect(self.handle_worker_error)
             except Exception as e:
                 print(f"Failed to initialize CRSF processor: {e}")
@@ -1704,6 +1707,26 @@ class MainWindow(QMainWindow):
             self.roll_alarm_playing = False
 
     @Slot(object)
+    def _handle_serial_debug(self, payload) -> None:
+        """Log raw serial bytes to the Debug tab when requested."""
+
+        if not self._debug_monitoring or not self._debug_serial_all:
+            return
+
+        try:
+            data = bytes(payload)
+        except Exception:
+            try:
+                data = bytes(payload.data())
+            except Exception:
+                return
+
+        if not data:
+            return
+
+        self.debug_page.log_serial_data(data)
+
+    @Slot(object)
     def handle_telemetry_wrapper(self, data) -> None:
         """Unpack CRSF telemetry and forward it to ``handle_telemetry``."""
         packet_type, *values = data
@@ -1847,7 +1870,9 @@ class MainWindow(QMainWindow):
             cat, color = self.classify_snr(downlink_snr)
             self.set_label(self.ui.downlinkSnrLabel, "Downlink SNR", cat, color)
 
-        if self._debug_monitoring and packet_type in self._debug_packets:
+        if self._debug_monitoring and (
+            self._debug_telemetry_all or packet_type in self._debug_packets
+        ):
             self.debug_page.log_packet(packet_type, values)
 
         self._update_packet_rates(packet_type, now)
@@ -2559,6 +2584,7 @@ class MainWindow(QMainWindow):
                 self.crsf_processor.telemetry_ready.connect(
                     self.handle_telemetry_wrapper
                 )
+                self.crsf_processor.serial_data.connect(self._handle_serial_debug)
             except Exception as e:
                 print(f"Failed to initialize CRSF processor: {e}")
         self.update_connection_status(self.rf_status, self.crsf_processor is not None)
@@ -3042,14 +3068,27 @@ class MainWindow(QMainWindow):
             UIFunctions.resetStyle(self, btnName)
             btn.setStyleSheet(UIFunctions.selectMenu(btn.styleSheet()))
 
-    def start_debug_monitoring(self, packets: set[str], include_joystick: bool) -> None:
+    def start_debug_monitoring(
+        self,
+        packets: set[str],
+        include_joystick: bool,
+        serial_all: bool,
+        telemetry_all: bool,
+    ) -> None:
         """Begin forwarding selected telemetry streams to the Debug tab."""
 
         self._debug_packets = set(packets)
         self._debug_include_joystick = include_joystick
+        self._debug_serial_all = serial_all
+        self._debug_telemetry_all = telemetry_all
         self._debug_monitoring = True
-        self.debug_page.begin_monitoring(self._debug_packets, include_joystick)
-        if self._debug_packets and not self.crsf_processor:
+        self.debug_page.begin_monitoring(
+            self._debug_packets,
+            include_joystick,
+            serial_all,
+            telemetry_all,
+        )
+        if (self._debug_packets or serial_all or telemetry_all) and not self.crsf_processor:
             self.debug_page.append_message(
                 "Telemetry transmitter not connected; waiting for packets."
             )
@@ -3066,6 +3105,8 @@ class MainWindow(QMainWindow):
         self._debug_monitoring = False
         self._debug_packets.clear()
         self._debug_include_joystick = False
+        self._debug_serial_all = False
+        self._debug_telemetry_all = False
         self.debug_page.end_monitoring()
 
     def resizeEvent(self, event):
