@@ -135,7 +135,6 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self._configure_metric_labels()
-        self._make_configuration_scrollable()
 
         self.battery_percent_bar = None
         self.autopilot_time_label = None
@@ -347,6 +346,11 @@ class MainWindow(QMainWindow):
                 self.warning_cfg.get("bank_angle_alarm_enabled", True)
             )
             self.ui.chk_alarm_bank.toggled.connect(self.on_bank_alarm_toggled)
+
+        # Now that configuration dictionaries are available, finish initializing
+        # the configuration page and any hardware interfaces that depend on
+        # them.
+        self._make_configuration_scrollable()
 
         # Track last worker error to prevent dialog spam
         self._last_error_message = None
