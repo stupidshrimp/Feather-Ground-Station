@@ -323,10 +323,6 @@ class CRSFPacketProcessor(QObject):
                 # CRC forms the payload regardless of the envelope type.
                 payload = packet[3 : frame_end - 1]
 
-                # Ignore parameter setting packets (0x3A)
-                if packet_type == 0x3A:
-                    continue
-
                 if packet_type == 0x14:
                     self._decode_link_statistics_payload(payload)
                     continue
@@ -541,6 +537,43 @@ class CRSFPacketProcessor(QObject):
             if emit:
                 self.telemetry_ready.emit(("attitude", pitch, roll, yaw))
             return needed
+
+        if packet_type == 0x3A:  # Handset timing synchronisation
+            payload_size = 9
+            dest = orig = None
+            start = 0
+
+            # Extended frames prepend destination and origin addresses to the
+            # payload.  Piggybacked telemetry omits these two bytes, so consume
+            # them only when present.
+            if len(view) >= payload_size + 2:
+                dest = int(view[0])
+                orig = int(view[1])
+                start = 2
+
+            if len(view) < start + payload_size:
+                logger.warning(
+                    "Handset payload too short: expected at least %d bytes, got %d",
+                    start + payload_size,
+                    len(view),
+                )
+                return 0
+
+            handset_view = view[start : start + payload_size]
+
+            subtype = int(handset_view[0])
+            try:
+                rate_raw, offset_raw = struct.unpack(">II", handset_view[1:9])
+            except Exception:
+                logger.exception("Failed to unpack handset payload")
+                return 0
+
+            if emit:
+                self.telemetry_ready.emit(
+                    ("handset_timing", subtype, rate_raw, offset_raw, dest, orig)
+                )
+
+            return start + payload_size
 
         if packet_type == 0xF0:  # Custom telemetry
             needed = 16
