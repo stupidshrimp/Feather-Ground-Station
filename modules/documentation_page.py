@@ -176,6 +176,32 @@ class DocumentationPage:
         )
         self._add_paragraph(frame_layout, reliability)
 
+        arduino_integration = (
+            "For embedded nodes we lean on the open-source CRSF for Arduino library to "
+            "bridge ExpressLRS receivers with custom firmware. The sketch-facing class "
+            "`CRSFforArduino` wraps the low-level serial parser so mission logic can stay "
+            "focused on reacting to stick inputs and pushing telemetry upstream."
+        )
+        self._add_paragraph(frame_layout, arduino_integration)
+
+        self._add_subsection(
+            frame_layout,
+            "Integrating CRSF for Arduino",
+            (
+                "Instantiate a `CRSFforArduino` object, call `begin()` to initialise the shared UART, "
+                "and bail out if the port is unavailable.",
+                "Invoke `update()` every loop to drain the 420 kbaud serial stream, decode CRSF frames, "
+                "and service telemetry slots without overflowing the RX buffer.",
+                "Register callbacks such as `setRcChannelsCallback()` or `setLinkStatisticsCallback()` to "
+                "receive decoded RC channels, link state transitions, and telemetry metrics as soon as new "
+                "frames arrive.",
+                "Map flight modes by declaring channel ranges with `setFlightMode()` and use helpers like "
+                "`rcToUs()` or `getChannel()` for microsecond-style control logic.",
+                "Leverage telemetry writers (battery, GPS, status text) to queue outbound frames; the "
+                "library's scheduler sequences them alongside ExpressLRS telemetry windows automatically.",
+            ),
+        )
+
         self._add_subsection(
             frame_layout,
             "Encoding and decoding checkpoints",
