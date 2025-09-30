@@ -488,12 +488,19 @@ class MainWindow(QMainWindow):
             print("CRSF disabled due to unavailable port.")
 
         # Timer for transmitting data (default from config)
+        self._control_interval_s = CONTROL_PACKET_INTERVAL_MS / 1000.0
+        # Cap any catch-up burst to avoid spamming the link if the event loop
+        # stalls for an extended period (for example when the GUI is busy).
+        self._max_control_burst = 6
+        self._control_accumulator = 0.0
+        self._last_control_tick = time.monotonic()
         self.transmit_timer = QTimer(self)
         self.transmit_timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.transmit_timer.timeout.connect(self.transmit_data)
         transmit_interval = self._get_control_packet_interval(persist=True)
         self.transmit_timer.setInterval(transmit_interval)
         self.transmit_timer.start()
+        self._reset_control_scheduler()
 
         # Track transmission state and countdown handling for the configuration
         # page's terminate/start button.
@@ -1898,6 +1905,58 @@ class MainWindow(QMainWindow):
         out_min, out_max = 172, 1811
         return int(round((value + 1.0) * 0.5 * (out_max - out_min) + out_min))
 
+    def _reset_control_scheduler(self) -> None:
+        """Reset control packet scheduling to the current time."""
+
+        self._control_accumulator = 0.0
+        self._last_control_tick = time.monotonic()
+
+    def _build_control_channels(self) -> list[int]:
+        """Create the channel payload for the next control packet."""
+
+        channels = [1500] * 16
+        if self.joystick:
+            try:
+                mapped_roll, mapped_pitch = self.joystick.get_mapped_values()
+            except Exception as exc:
+                print(f"Error during transmission: {exc}")
+            else:
+                channels[0] = int(mapped_roll)
+                channels[1] = int(mapped_pitch)
+
+        # Map throttle percentage to CRSF channel range (172-1811)
+        throttle_min = 172
+        throttle_max = 1811
+        throttle_span = throttle_max - throttle_min
+        clamped_percent = max(0.0, min(100.0, self.throttle_percent))
+        throttle_value = int((clamped_percent / 100) * throttle_span + throttle_min)
+        channels[2] = throttle_value
+
+        # Map yaw input to channel 4 (index 3)
+        channels[3] = self._map_axis_to_crsf(self.yaw_value)
+
+        # Control mode channel: send low for Manual, high for Fly-By-Wire
+        mode_value = 1700 if self.control_mode == "Fly-By-Wire" else 400
+        channels[self.control_mode_channel] = mode_value
+        return channels
+
+    def _emit_control_packet(self) -> bool:
+        """Send the current control packet to the CRSF processor."""
+
+        if not self.crsf_processor:
+            return False
+
+        channels = self._build_control_channels()
+        try:
+            self.crsf_processor.channel_update.emit(channels)
+        except Exception as exc:
+            print(f"Error during transmission: {exc}")
+            return False
+
+        if self._debug_monitoring and "control" in self._debug_packets:
+            self.debug_page.log_packet("control", channels)
+        return True
+
     def _get_control_packet_interval(self, *, persist: bool = False) -> int:
         """Return the enforced control packet interval in milliseconds."""
 
@@ -1921,40 +1980,28 @@ class MainWindow(QMainWindow):
         return interval
 
     def transmit_data(self):
-        """
-        Transmit CRSF packets using mapped joystick values.
-        """
+        """Transmit CRSF packets using mapped joystick values at the target rate."""
+
         if not self.crsf_processor:
             return
 
-        channels = [1500] * 16
-        if self.joystick:
-            try:
-                mapped_roll, mapped_pitch = self.joystick.get_mapped_values()
-                channels[0] = int(mapped_roll)
-                channels[1] = int(mapped_pitch)
-            except Exception as e:
-                print(f"Error during transmission: {e}")
-        # Map throttle percentage to CRSF channel range (172-1811)
-        throttle_min = 172
-        throttle_max = 1811
-        throttle_span = throttle_max - throttle_min
-        clamped_percent = max(0.0, min(100.0, self.throttle_percent))
-        throttle_value = int((clamped_percent / 100) * throttle_span + throttle_min)
-        channels[2] = throttle_value
-        # Map yaw input to channel 4 (index 3)
-        channels[3] = self._map_axis_to_crsf(self.yaw_value)
+        now = time.monotonic()
+        elapsed = max(0.0, now - self._last_control_tick)
+        self._last_control_tick = now
+        self._control_accumulator = min(
+            self._control_accumulator + elapsed,
+            self._max_control_burst * self._control_interval_s,
+        )
 
-        # Control mode channel: send low for Manual, high for Fly-By-Wire
-        mode_value = 1700 if self.control_mode == "Fly-By-Wire" else 400
-        channels[self.control_mode_channel] = mode_value
-        try:
-            self.crsf_processor.channel_update.emit(channels)
-        except Exception as e:
-            print(f"Error during transmission: {e}")
-        else:
-            if self._debug_monitoring and "control" in self._debug_packets:
-                self.debug_page.log_packet("control", channels)
+        sent = 0
+        while self._control_accumulator >= self._control_interval_s and sent < self._max_control_burst:
+            if not self._emit_control_packet():
+                return
+            self._control_accumulator -= self._control_interval_s
+            sent += 1
+
+        if sent == 0:
+            self._emit_control_packet()
 
     def update_control_mode_label(self):
         """Update the control mode indicator text and color."""
@@ -2489,6 +2536,7 @@ class MainWindow(QMainWindow):
 
         self.transmit_timer.stop()
         self.transmission_active = False
+        self._reset_control_scheduler()
         self._transmission_pressed_while_inactive = False
         self._transmission_hold_in_progress = False
         self._transmission_hold_timer.stop()
@@ -2507,6 +2555,7 @@ class MainWindow(QMainWindow):
         self.transmit_timer.setInterval(interval)
         self.transmit_timer.start()
         self.transmission_active = True
+        self._reset_control_scheduler()
         self._transmission_pressed_while_inactive = False
         self._apply_transmission_button_style("active")
         self.transmission_control_button.setText("Terminate transmission")
@@ -2630,6 +2679,7 @@ class MainWindow(QMainWindow):
         self.packet_interval_edit.setText(str(interval))
         if self.transmission_active:
             self.transmit_timer.setInterval(interval)
+            self._reset_control_scheduler()
             self.transmit_timer.start()
         self.update_pico_rate_label()
 
