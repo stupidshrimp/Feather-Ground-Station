@@ -113,10 +113,6 @@ from modules.documentation_page import DocumentationPage
 from modules.preflight_page import PreFlightChecklistPage
 
 
-CONTROL_PACKET_RATE_HZ = 250
-CONTROL_PACKET_INTERVAL_MS = int(round(1000 / CONTROL_PACKET_RATE_HZ))
-
-
 def validate_port(name: str, port: str) -> bool:
     """Validate that a serial port exists on the system."""
     available = [p.device for p in list_ports.comports()]
@@ -489,11 +485,9 @@ class MainWindow(QMainWindow):
 
         # Timer for transmitting data (default from config)
         self.transmit_timer = QTimer(self)
-        self.transmit_timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.transmit_timer.timeout.connect(self.transmit_data)
-        transmit_interval = self._get_control_packet_interval(persist=True)
-        self.transmit_timer.setInterval(transmit_interval)
-        self.transmit_timer.start()
+        transmit_interval = self.crsf_cfg.get("packet_interval", 15)
+        self.transmit_timer.start(transmit_interval)
 
         # Track transmission state and countdown handling for the configuration
         # page's terminate/start button.
@@ -1898,28 +1892,6 @@ class MainWindow(QMainWindow):
         out_min, out_max = 172, 1811
         return int(round((value + 1.0) * 0.5 * (out_max - out_min) + out_min))
 
-    def _get_control_packet_interval(self, *, persist: bool = False) -> int:
-        """Return the enforced control packet interval in milliseconds."""
-
-        try:
-            interval = int(self.crsf_cfg.get("packet_interval", CONTROL_PACKET_INTERVAL_MS))
-        except (TypeError, ValueError):
-            interval = CONTROL_PACKET_INTERVAL_MS
-
-        needs_save = False
-        if interval != CONTROL_PACKET_INTERVAL_MS:
-            interval = CONTROL_PACKET_INTERVAL_MS
-            needs_save = True
-
-        if self.crsf_cfg.get("packet_interval") != interval:
-            needs_save = True
-
-        self.crsf_cfg["packet_interval"] = interval
-        if persist and needs_save:
-            save_config(self.config)
-
-        return interval
-
     def transmit_data(self):
         """
         Transmit CRSF packets using mapped joystick values.
@@ -2103,10 +2075,9 @@ class MainWindow(QMainWindow):
         rate_row = QHBoxLayout()
         rate_row.addWidget(QLabel("Packet Interval (ms)"))
         self.packet_interval_edit = QLineEdit()
-        interval_ms = self._get_control_packet_interval()
-        self.packet_interval_edit.setText(str(interval_ms))
-        self.packet_interval_edit.setReadOnly(True)
-        self.packet_interval_edit.setToolTip("Control packets transmit at a fixed 250 Hz (4 ms interval).")
+        self.packet_interval_edit.setText(
+            str(self.crsf_cfg.get("packet_interval", 3))
+        )
         self.packet_interval_edit.setFixedWidth(80)
         rate_row.addWidget(self.packet_interval_edit)
         rf_layout.addLayout(rate_row)
@@ -2503,9 +2474,8 @@ class MainWindow(QMainWindow):
         if self.transmission_active:
             return
 
-        interval = self._get_control_packet_interval()
-        self.transmit_timer.setInterval(interval)
-        self.transmit_timer.start()
+        interval = self.crsf_cfg.get("packet_interval", 3)
+        self.transmit_timer.start(interval)
         self.transmission_active = True
         self._transmission_pressed_while_inactive = False
         self._apply_transmission_button_style("active")
@@ -2626,18 +2596,23 @@ class MainWindow(QMainWindow):
         save_config(self.config)
 
     def on_packet_interval_changed(self):
-        interval = self._get_control_packet_interval(persist=True)
-        self.packet_interval_edit.setText(str(interval))
+        try:
+            interval = int(self.packet_interval_edit.text())
+        except ValueError:
+            interval = self.crsf_cfg.get("packet_interval", 3)
+            self.packet_interval_edit.setText(str(interval))
+        self.crsf_cfg["packet_interval"] = interval
         if self.transmission_active:
-            self.transmit_timer.setInterval(interval)
-            self.transmit_timer.start()
+            self.transmit_timer.start(interval)
         self.update_pico_rate_label()
+        save_config(self.config)
 
     def update_pico_rate_label(self):
-        interval = self._get_control_packet_interval()
-        self.pico_rate_label.setText(
-            f"PICO writing packets at {CONTROL_PACKET_RATE_HZ} Hz (interval {interval} ms)."
-        )
+        interval = self.crsf_cfg.get("packet_interval", 3)
+        freq = 0
+        if interval:
+            freq = 1000 / interval
+        self.pico_rate_label.setText(f"PICO writing packets at {freq:.0f} Hz.")
 
     def on_deadzone_changed(self, value: int):
         self.joystick_cfg["deadzone"] = value
