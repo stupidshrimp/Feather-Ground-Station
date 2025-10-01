@@ -14,7 +14,8 @@ from PySide6.QtCore import (
 from PySide6.QtWidgets import QLabel, QGraphicsOpacityEffect
 import cv2
 import numpy as np
-from typing import Optional
+import sys
+from typing import Optional, Union
 
 # Reduce OpenCV's log verbosity so failing device indices do not spam stderr.
 try:
@@ -30,7 +31,7 @@ class FrameWorker(QObject):
     frame_ready = Signal(QImage)
     error = Signal(str)
 
-    def __init__(self, device_index: int, video_feed):
+    def __init__(self, device_index: Union[int, str], video_feed):
         super().__init__()
         self.device_index = device_index
         self.video_feed = video_feed
@@ -56,7 +57,7 @@ class FrameWorker(QObject):
             return
 
         try:
-            self.cap = cv2.VideoCapture(self.device_index)
+            self.cap = VideoFeed.open_capture(self.device_index)
         except cv2.error:
             self.cap = None
 
@@ -139,7 +140,32 @@ class FrameWorker(QObject):
 
 class VideoFeed(QObject):
     @staticmethod
-    def detect_device_index(preferred_index: int = 1, max_index: int = 5) -> Optional[int]:
+    def open_capture(target: Union[int, str]) -> cv2.VideoCapture:
+        """Open a capture device using the most reliable backend for the host OS."""
+
+        api_preference = cv2.CAP_DSHOW if sys.platform.startswith("win") else cv2.CAP_ANY
+
+        # ``cv2.VideoCapture`` raises if the backend is unavailable (common on
+        # Linux when requesting ``CAP_DSHOW``).  Retry with the default backend
+        # if the preferred one fails.
+        try:
+            cap = cv2.VideoCapture(target, api_preference)
+        except cv2.error:
+            cap = cv2.VideoCapture(target)
+
+        if not cap or not cap.isOpened():
+            # Some OpenCV builds ignore ``api_preference`` but still fail to
+            # open the device. Fall back to the default constructor once more
+            # after releasing the partially constructed object to give the
+            # runtime a second chance (e.g. Windows' MSMF backend).
+            if cap:
+                cap.release()
+            cap = cv2.VideoCapture(target)
+
+        return cap
+
+    @staticmethod
+    def detect_device_index(preferred_index: int = 1, max_index: int = 5) -> Optional[Union[int, str]]:
         """Return the first available video capture device index.
 
         Parameters
@@ -158,14 +184,16 @@ class VideoFeed(QObject):
             could be opened.
         """
 
-        # ``0`` is typically the laptop's integrated webcam.  Skip it so that
-        # automatic detection will only consider external capture devices.  If a
-        # caller explicitly wants to use the internal webcam they can pass
-        # ``device_index=0`` when constructing :class:`VideoFeed`.
+        # ``0`` is typically the laptop's integrated webcam.  Prefer the
+        # external capture card (index ``1`` by default) but still probe the
+        # internal webcam as a fallback so that a single-camera setup continues
+        # to work out of the box.
         indices = [preferred_index] + [i for i in range(1, max_index) if i != preferred_index]
+        if 0 not in indices:
+            indices.append(0)
         for index in indices:
             try:
-                cap = cv2.VideoCapture(index)
+                cap = VideoFeed.open_capture(index)
                 if cap.isOpened():
                     cap.release()
                     return index
@@ -174,7 +202,7 @@ class VideoFeed(QObject):
                 continue
         return None
 
-    def __init__(self, VideoLabel: QLabel, device_index: Optional[int] = None):
+    def __init__(self, VideoLabel: QLabel, device_index: Optional[Union[int, str]] = None):
         """Initialize the video feed.
 
         Parameters
