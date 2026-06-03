@@ -81,3 +81,20 @@ def test_decode_handset_piggyback_payload():
     assert processor.telemetry_ready.emitted == [
         ("handset_timing", subtype, rate, offset, None, None)
     ]
+
+
+def test_default_channels_are_neutral_raw_crsf_values():
+    processor = CRSFPacketProcessor.__new__(CRSFPacketProcessor)
+
+    channels = processor._normalise_channels([])
+
+    assert channels == [CRSFPacketProcessor.CHANNEL_CENTER] * 16
+
+
+def test_channel_normalisation_pads_and_clamps_raw_crsf_values():
+    processor = CRSFPacketProcessor.__new__(CRSFPacketProcessor)
+
+    channels = processor._normalise_channels([0, 172, 992, 1811, 2500])
+
+    assert channels[:5] == [172, 172, 992, 1811, 1811]
+    assert channels[5:] == [CRSFPacketProcessor.CHANNEL_CENTER] * 11

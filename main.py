@@ -1918,7 +1918,7 @@ class MainWindow(QMainWindow):
         if not self.crsf_processor:
             return
 
-        channels = [1500] * 16
+        channels = [CRSFPacketProcessor.CHANNEL_CENTER] * 16
         if self.joystick:
             try:
                 mapped_roll, mapped_pitch = self.joystick.get_mapped_values()

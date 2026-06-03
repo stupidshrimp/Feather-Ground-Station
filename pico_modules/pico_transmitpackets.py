@@ -14,6 +14,9 @@ class CRSFPacketProcessor(QObject):
 
     CRSF_SYNC = 0xC8
     TELEMETRY_SYNC = 0xEA  # Start byte used for telemetry frames
+    CHANNEL_MIN = 172
+    CHANNEL_CENTER = 992
+    CHANNEL_MAX = 1811
 
     telemetry_ready = Signal(object)
     serial_data = Signal(object)
@@ -33,8 +36,8 @@ class CRSFPacketProcessor(QObject):
         baudrate : int, optional
             Baudrate for serial communication (default ``921600``).
         channels : list, optional
-            Initial channel values (up to 16 channels). Defaults to ``1500`` for
-            all channels.
+            Initial raw CRSF channel values (up to 16 channels). Defaults to
+            neutral ``992`` for all channels.
         """
         # Ensure the underlying QObject is initialised so that Qt signals
         # remain valid for the lifetime of this processor.  Without this call
@@ -42,13 +45,16 @@ class CRSFPacketProcessor(QObject):
         # been deleted`` when packets are decoded.
         super().__init__()
         if channels is None:
-            channels = [1500] * 16  # Default channel values
+            # CRSF channel packets contain raw 11-bit channel values, not
+            # servo microseconds. 992 is the neutral CRSF value that maps to
+            # roughly 1500 us on the receiver/flight-controller side.
+            channels = [self.CHANNEL_CENTER] * 16
 
         if len(channels) > 16:
             raise ValueError("Maximum of 16 channels supported.")
 
         # Pad the provided channels to 16 if fewer are given
-        self.channels = channels + [1500] * (16 - len(channels))
+        self.channels = self._normalise_channels(channels)
 
         port_info = QSerialPortInfo(port)
         self.serial_port = port_info.systemLocation() or port
@@ -168,6 +174,13 @@ class CRSFPacketProcessor(QObject):
             crc = CRSFPacketProcessor.crc8_dvb_s2(crc, a)
         return crc
 
+    @classmethod
+    def _normalise_channels(cls, channels):
+        """Return exactly 16 clamped raw CRSF channel values."""
+        values = list(channels[:16])
+        values += [cls.CHANNEL_CENTER] * (16 - len(values))
+        return [max(cls.CHANNEL_MIN, min(cls.CHANNEL_MAX, int(value))) for value in values]
+
     @staticmethod
     def pack_crsf_to_bytes(channels):
         """
@@ -207,8 +220,9 @@ class CRSFPacketProcessor(QObject):
                 )
                 new_channels = new_channels[:16]
 
-            # Update channel values and pad to 16 channels if necessary
-            self.channels = new_channels + [1500] * (16 - len(new_channels))
+            # Update channel values and pad to 16 channels if necessary.
+            # Values must stay in raw CRSF units (172-1811), with 992 neutral.
+            self.channels = self._normalise_channels(new_channels)
 
             # Check USB connection
             if not self.check_usb_connection():
