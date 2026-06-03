@@ -90,6 +90,7 @@ class CRSFPacketProcessor(QObject):
         self._tx_interval_ms = max(1, int(packet_interval_ms or 4))
         self._tx_enabled = bool(transmission_enabled)
         self._tx_timer = None
+        self._tx_next_deadline = None
         # Buffer for incoming telemetry bytes.  Telemetry packets can be
         # fragmented or arrive in bursts.  A persistent buffer lets us decode
         # every packet instead of only the first one in each serial read.
@@ -264,14 +265,52 @@ class CRSFPacketProcessor(QObject):
         )
 
     def _ensure_tx_timer(self):
-        """Create/start the worker-thread transmit timer."""
+        """Create/start the worker-thread transmit pump.
+
+        A normal millisecond QTimer can collapse to the host OS scheduler
+        quantum (about 15-16 ms on common Windows configurations), which turns
+        a requested 4 ms CRSF cadence into roughly 62 Hz.  Run the worker timer
+        as an event-loop pump instead and gate actual writes against
+        ``time.perf_counter`` so sub-10 ms RC frame intervals are not quantised
+        down to the desktop timer resolution.
+        """
         if self._tx_timer is None:
             self._tx_timer = QTimer(self)
             self._tx_timer.setTimerType(Qt.TimerType.PreciseTimer)
-            self._tx_timer.timeout.connect(self.send_current_packet)
+            self._tx_timer.timeout.connect(self._tx_timer_tick)
 
         if self._tx_enabled and not self._tx_timer.isActive():
-            self._tx_timer.start(self._tx_interval_ms)
+            self._tx_next_deadline = time.perf_counter()
+            # A 0 ms timer fires once per worker event-loop pass instead of
+            # sleeping on the OS timer quantum.  ``_tx_timer_tick`` performs the
+            # actual interval check before writing a packet.
+            self._tx_timer.start(0)
+
+    @Slot()
+    def _tx_timer_tick(self):
+        """Transmit when the high-resolution monotonic deadline has elapsed."""
+        if not self._tx_enabled:
+            if self._tx_timer:
+                self._tx_timer.stop()
+            self._tx_next_deadline = None
+            return "Disabled"
+
+        now = time.perf_counter()
+        if self._tx_next_deadline is None:
+            self._tx_next_deadline = now
+
+        if now < self._tx_next_deadline:
+            return "Waiting"
+
+        result = self.send_current_packet()
+
+        interval_s = max(0.001, self._tx_interval_ms / 1000.0)
+        self._tx_next_deadline += interval_s
+        if self._tx_next_deadline <= now:
+            missed_intervals = int((now - self._tx_next_deadline) / interval_s) + 1
+            self._tx_next_deadline += missed_intervals * interval_s
+
+        return result
 
     @Slot(int)
     def set_packet_interval(self, interval_ms):
@@ -282,7 +321,8 @@ class CRSFPacketProcessor(QObject):
             self._tx_interval_ms = 4
 
         if self._tx_timer and self._tx_timer.isActive():
-            self._tx_timer.start(self._tx_interval_ms)
+            self._tx_next_deadline = time.perf_counter()
+            self._tx_timer.start(0)
 
     @Slot(bool)
     def set_transmission_enabled(self, enabled):
@@ -291,6 +331,7 @@ class CRSFPacketProcessor(QObject):
         if not self._tx_enabled:
             if self._tx_timer:
                 self._tx_timer.stop()
+            self._tx_next_deadline = None
             return
         self._ensure_tx_timer()
 
@@ -711,6 +752,7 @@ class CRSFPacketProcessor(QObject):
         try:
             if self._tx_timer:
                 self._tx_timer.stop()
+            self._tx_next_deadline = None
             if self.serial:
                 try:
                     self.serial.readyRead.disconnect(self.read_serial_data)

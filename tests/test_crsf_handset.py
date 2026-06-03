@@ -183,4 +183,33 @@ def test_update_channels_and_enable_refreshes_before_starting_timer():
     assert processor.channels[:3] == [172, 1811, 1000]
     assert processor.channels[3:] == [CRSF_CHANNEL_CENTER] * 13
     assert processor._tx_enabled is True
-    assert timer.started_with == [4]
+    assert timer.started_with == [0]
+
+
+def test_transmit_pump_uses_monotonic_deadline(monkeypatch):
+    processor = CRSFPacketProcessor.__new__(CRSFPacketProcessor)
+    processor._tx_enabled = True
+    processor._tx_timer = None
+    processor._tx_next_deadline = 100.0
+    processor._tx_interval_ms = 4
+    writes = []
+    processor.send_current_packet = lambda: writes.append("packet") or "Good"
+
+    current_time = 100.0
+    monkeypatch.setattr(
+        "pico_modules.pico_transmitpackets.time.perf_counter",
+        lambda: current_time,
+    )
+
+    assert processor._tx_timer_tick() == "Good"
+    assert writes == ["packet"]
+    assert processor._tx_next_deadline == pytest.approx(100.004)
+
+    current_time = 100.001
+    assert processor._tx_timer_tick() == "Waiting"
+    assert writes == ["packet"]
+
+    current_time = 100.004
+    assert processor._tx_timer_tick() == "Good"
+    assert writes == ["packet", "packet"]
+    assert processor._tx_next_deadline == pytest.approx(100.008)
