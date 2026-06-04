@@ -395,14 +395,24 @@ LowPassFilter pitchAngleFilter(FBW_ATTITUDE_FILTER_CUTOFF_HZ, static_cast<float>
 
 // Callback to capture incoming RC channel packets.
 void rcChannelsCallback(serialReceiverLayer::rcChannels_t *channels) {
-  if (channels == nullptr || channels->failsafe) {
+  if (channels == nullptr) {
     rcReceiverFailsafeActive = true;
     ++controlDebugCounters.rcFailsafePackets;
     return;
   }
 
+  // CRSFforArduino derives channels->failsafe from CRSF link-statistics
+  // frames.  The ground station's direct USB/serial control link sends
+  // RC_CHANNELS_PACKED frames but does not send receiver link-statistics, so
+  // the library reports failsafe even while fresh RC frames are arriving.
+  // Accept the decoded channel frame and let rcInputFresh() enforce our real
+  // failsafe from packet age instead of the missing link-statistics flag.
+  rcReceiverFailsafeActive = channels->failsafe;
+  if (channels->failsafe) {
+    ++controlDebugCounters.rcFailsafePackets;
+  }
+
   latestRcChannels = *channels;
-  rcReceiverFailsafeActive = false;
   lastRcPacketUs = micros();
   ++controlDebugCounters.rcPackets;
 }
@@ -423,8 +433,7 @@ bool shouldUpdateServo(uint16_t newCommandUs, uint16_t lastCommandUs, uint32_t l
 }
 
 bool rcInputFresh(uint32_t nowUs) {
-  return !rcReceiverFailsafeActive &&
-         lastRcPacketUs != 0 &&
+  return lastRcPacketUs != 0 &&
          (uint32_t)(nowUs - lastRcPacketUs) <= RC_FAILSAFE_TIMEOUT_US;
 }
 
