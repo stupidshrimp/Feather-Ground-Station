@@ -188,7 +188,7 @@ namespace serialReceiverLayer
         }
     }
 
-    void CRSF::getRcChannels(uint16_t *rcChannels)
+    bool CRSF::getRcChannels(uint16_t *rcChannels)
     {
         /* Decode RC frames if one has been received. */
         if (rcFrameReceived)
@@ -215,8 +215,11 @@ namespace serialReceiverLayer
                 rcChannels[RC_CHANNEL_AUX10] = rcChannelsPacked.channel13;
                 rcChannels[RC_CHANNEL_AUX11] = rcChannelsPacked.channel14;
                 rcChannels[RC_CHANNEL_AUX12] = rcChannelsPacked.channel15;
+                return true;
             }
         }
+
+        return false;
     }
 
     void CRSF::getLinkStatistics(link_statistics_t *linkStats)

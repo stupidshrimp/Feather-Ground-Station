@@ -554,8 +554,13 @@ namespace serialReceiverLayer
 
 #if CRSF_RC_ENABLED > 0
                 crsf->getFailSafe(&_rcChannels->failsafe);
-                crsf->getRcChannels(_rcChannels->value);
-                if (_rcChannelsCallback != nullptr)
+                const bool rcFrameReceived = crsf->getRcChannels(_rcChannels->value);
+                /* Only publish RC channels when this decoded frame actually
+                 * contained a fresh RC_CHANNELS_PACKED payload. Link statistics
+                 * and telemetry frames may arrive during RF failsafe without new
+                 * RC data; re-emitting the held channel buffer for those frames
+                 * prevents downstream packet-age failsafes from expiring. */
+                if (rcFrameReceived && _rcChannelsCallback != nullptr)
                 {
                     _rcChannelsCallback(_rcChannels);
                 }
