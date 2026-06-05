@@ -545,13 +545,18 @@ void updateControlMode() {
   const size_t modeChannelIndex = 5;
   const size_t channelCount = sizeof(latestRcChannels.value) / sizeof(latestRcChannels.value[0]);
   if (modeChannelIndex >= channelCount) {
+    setControlMode(CONTROL_MODE_MANUAL);
     return;
   }
-  uint16_t modeValue = latestRcChannels.value[modeChannelIndex];
-  if (modeValue <= CONTROL_MODE_MANUAL_MAX) {
-    setControlMode(CONTROL_MODE_MANUAL);
-  } else if (modeValue >= CONTROL_MODE_FLY_BY_WIRE_MIN) {
+
+  const uint16_t modeValue = latestRcChannels.value[modeChannelIndex];
+  if (modeValue >= CONTROL_MODE_FLY_BY_WIRE_MIN) {
     setControlMode(CONTROL_MODE_FLY_BY_WIRE);
+  } else {
+    // Treat every non-FBW command (including a centered/missing AUX2 channel)
+    // as Manual. This prevents the flight controller from remaining latched in
+    // Fly-By-Wire after the ground station or radio has returned to Manual.
+    setControlMode(CONTROL_MODE_MANUAL);
   }
 }
 
@@ -1018,8 +1023,6 @@ void loop() {
     float roll  = -atan2(2.0*(q0*q1 + q2*q3), 1.0 - 2.0*(q1*q1 + q2*q2)) * (180.0 / M_PI);
     float pitch = asin(2.0*(q0*q2 - q3*q1)) * (180.0 / M_PI);
     float yaw   = atan2(2.0*(q0*q3 + q1*q2), 1.0 - 2.0*(q2*q2 + q3*q3)) * (180.0 / M_PI);
-    float filteredRoll = rollAngleFilter.update(roll, controlDt);
-    float filteredPitch = pitchAngleFilter.update(pitch, controlDt);
     // Previously applied calibration offsets have been removed so that
     // raw EKF-derived roll and pitch values are reported directly.
     
@@ -1071,14 +1074,16 @@ void loop() {
       rollCommandUs = SERVO_CENTER_US;
       pitchCommandUs = SERVO_CENTER_US;
     } else if (controlMode == CONTROL_MODE_FLY_BY_WIRE) {
-      float rollCommandNorm = mapRcToNormalized(rcRollRaw);
-      float pitchCommandNorm = mapRcToNormalized(rcPitchRaw);
+      const float filteredRoll = rollAngleFilter.update(roll, controlDt);
+      const float filteredPitch = pitchAngleFilter.update(pitch, controlDt);
+      const float rollCommandNorm = mapRcToNormalized(rcRollRaw);
+      const float pitchCommandNorm = mapRcToNormalized(rcPitchRaw);
 
-      float desiredRoll = rollCommandNorm * FBW_MAX_ROLL_ANGLE_DEG;
-      float desiredPitch = pitchCommandNorm * FBW_MAX_PITCH_ANGLE_DEG;
+      const float desiredRoll = rollCommandNorm * FBW_MAX_ROLL_ANGLE_DEG;
+      const float desiredPitch = pitchCommandNorm * FBW_MAX_PITCH_ANGLE_DEG;
 
-      float rollPidOutput = rollPid.update(desiredRoll, filteredRoll, controlDt);
-      float pitchPidOutput = pitchPid.update(desiredPitch, filteredPitch, controlDt);
+      const float rollPidOutput = rollPid.update(desiredRoll, filteredRoll, controlDt);
+      const float pitchPidOutput = pitchPid.update(desiredPitch, filteredPitch, controlDt);
 
       rollCommandUs = static_cast<uint16_t>(constrain(SERVO_CENTER_US + rollPidOutput,
                                                       static_cast<float>(SERVO_MIN_US),
@@ -1087,6 +1092,13 @@ void loop() {
                                                        static_cast<float>(SERVO_MIN_US),
                                                        static_cast<float>(SERVO_MAX_US)));
     } else {
+      // Manual mode must be a direct RC-to-servo pass-through. Keep the FBW
+      // state cleared while Manual is active so attitude-error correction can
+      // never bleed into the commanded aileron/elevator outputs.
+      rollPid.reset();
+      pitchPid.reset();
+      rollAngleFilter.reset();
+      pitchAngleFilter.reset();
       rollCommandUs = mapRcToUs(rcRollRaw);
       pitchCommandUs = mapRcToUs(rcPitchRaw);
     }
