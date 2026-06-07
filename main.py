@@ -168,6 +168,8 @@ class MainWindow(QMainWindow):
         self.autopilot_time_label = None
         self.autopilot_longitude_label = None
         self.autopilot_latitude_label = None
+        self.gps_fix_status_label = None
+        self.gps_fix_status_dot = None
         # Size the window using the command page and keep it fixed. This
         # ensures the GUI is always large enough for its contents and does not
         # change size when switching between pages.
@@ -208,6 +210,8 @@ class MainWindow(QMainWindow):
         self._airborne_takeoff_start_time = None
         self._airborne_landing_start_time = None
         self._last_airborne_indicator_state = None
+        self._gps_has_lock: Optional[bool] = None
+        self._last_gps_fix_indicator_state = None
 
         # Sortie recording state and controls
         self._sortie_fields = [
@@ -284,6 +288,7 @@ class MainWindow(QMainWindow):
 
         self._setup_command_sidebar()
         self._setup_airborne_indicator()
+        self._setup_gps_fix_indicator()
         self._setup_sortie_section()
         self.sortie_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
         self.sortie_shortcut.activated.connect(self.toggle_sortie_recording)
@@ -670,7 +675,6 @@ class MainWindow(QMainWindow):
         self._latest_gps_fix_seq = 0
         self._last_pushed_gps_fix_seq = 0
         self._gps_first_fix_sent = False
-        self._gps_has_lock: Optional[bool] = None
         self.current_altitude = None
         self.current_airspeed = None
         self.last_airspeed_packet_time = None
@@ -973,6 +977,44 @@ class MainWindow(QMainWindow):
 
         column_layout.addWidget(flight_status_container)
 
+        gps_fix_container = QFrame(frame)
+        gps_fix_container.setObjectName("gpsFixContainer")
+        gps_fix_container.setSizePolicy(
+            QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        )
+        gps_fix_container.setStyleSheet(panel_style)
+
+        gps_fix_layout = QHBoxLayout(gps_fix_container)
+        gps_fix_layout.setContentsMargins(12, 12, 12, 12)
+        gps_fix_layout.setSpacing(12)
+
+        gps_fix_text_layout = QVBoxLayout()
+        gps_fix_text_layout.setContentsMargins(0, 0, 0, 0)
+        gps_fix_text_layout.setSpacing(2)
+
+        gps_fix_title = QLabel("GPS Fix", gps_fix_container)
+        gps_fix_title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        gps_fix_title.setFont(signal_title.font())
+        gps_fix_title.setStyleSheet("color: white;")
+        gps_fix_text_layout.addWidget(gps_fix_title)
+
+        self.gps_fix_status_label = QLabel("NO FIX", gps_fix_container)
+        self.gps_fix_status_label.setObjectName("gpsFixStatusLabel")
+        self.gps_fix_status_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.gps_fix_status_label.setMinimumHeight(28)
+        gps_fix_text_layout.addWidget(self.gps_fix_status_label)
+
+        gps_fix_layout.addLayout(gps_fix_text_layout, 1)
+
+        self.gps_fix_status_dot = QLabel(gps_fix_container)
+        self.gps_fix_status_dot.setObjectName("gpsFixStatusDot")
+        self.gps_fix_status_dot.setFixedSize(14, 14)
+        gps_fix_layout.addWidget(
+            self.gps_fix_status_dot, 0, Qt.AlignRight | Qt.AlignVCenter
+        )
+
+        column_layout.addWidget(gps_fix_container)
+
         autopilot_container = QFrame(frame)
         autopilot_container.setObjectName("autopilotContainer")
         autopilot_container.setSizePolicy(
@@ -1056,6 +1098,55 @@ class MainWindow(QMainWindow):
             "border-radius: 7px;"
         )
         self._last_airborne_indicator_state = state
+
+    def _setup_gps_fix_indicator(self) -> None:
+        """Initialise the command-page GPS fix indicator."""
+
+        self._last_gps_fix_indicator_state = None
+        self._update_gps_fix_indicator()
+
+    def _update_gps_fix_indicator(self) -> None:
+        """Render the current GPS fix state in the command sidebar."""
+
+        label = getattr(self, "gps_fix_status_label", None)
+        dot = getattr(self, "gps_fix_status_dot", None)
+        if label is None or dot is None:
+            return
+
+        state = "fix" if bool(self._gps_has_lock) else "no_fix"
+        if state == self._last_gps_fix_indicator_state:
+            return
+
+        if state == "fix":
+            text = "FIX VALID"
+            accent = "#21d07a"
+            background = "rgba(33, 208, 122, 32)"
+            border = "rgba(33, 208, 122, 155)"
+            dot_shadow = "rgba(33, 208, 122, 95)"
+        else:
+            text = "NO FIX"
+            accent = "#ff5252"
+            background = "rgba(255, 82, 82, 28)"
+            border = "rgba(255, 82, 82, 135)"
+            dot_shadow = "rgba(255, 82, 82, 75)"
+
+        label.setText(text)
+        label.setStyleSheet(
+            "font-size: 13px;"
+            "font-weight: 700;"
+            "letter-spacing: 2px;"
+            f"color: {accent};"
+            f"background-color: {background};"
+            f"border: 1px solid {border};"
+            "border-radius: 14px;"
+            "padding: 5px 12px;"
+        )
+        dot.setStyleSheet(
+            f"background-color: {accent};"
+            f"border: 3px solid {dot_shadow};"
+            "border-radius: 7px;"
+        )
+        self._last_gps_fix_indicator_state = state
 
     def _setup_sortie_section(self) -> None:
         """Create the Sortie controls within the settings sidebar."""
@@ -4239,6 +4330,7 @@ class MainWindow(QMainWindow):
         if self._gps_has_lock == has_lock:
             return
         self._gps_has_lock = has_lock
+        self._update_gps_fix_indicator()
         if not has_lock:
             self._latest_gps_fix = None
             default_lat, default_lon = self._map_initial_center
