@@ -166,6 +166,7 @@ class MainWindow(QMainWindow):
     SINK_RATE_MIN_WINDOW_S = 0.75
     SINK_RATE_MIN_SAMPLE_INTERVAL_S = 0.01
 
+
     def __init__(self):
         super().__init__()
         self.ui = Ui_MainWindow()
@@ -1876,6 +1877,7 @@ class MainWindow(QMainWindow):
             Qt.Key_E in self._yaw_keys_pressed
             or self.JOYSTICK_YAW_RIGHT_BUTTON in self._joystick_yaw_buttons_pressed
         )
+
 
         if left_active and right_active:
             target = 0.0
