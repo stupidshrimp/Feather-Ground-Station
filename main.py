@@ -161,6 +161,12 @@ class MainWindow(QMainWindow):
     JOYSTICK_CONTROL_MODE_BUTTON = 13
     JOYSTICK_YAW_LEFT_BUTTON = 14
     JOYSTICK_YAW_RIGHT_BUTTON = 15
+    JOYSTICK_ELEVATOR_TRIM_DOWN_BUTTON = 8
+    JOYSTICK_ELEVATOR_TRIM_UP_BUTTON = 7
+    JOYSTICK_AILERON_TRIM_LEFT_BUTTON = 6
+    JOYSTICK_AILERON_TRIM_RIGHT_BUTTON = 0
+    TRIM_STEP_NORMALIZED = 0.02
+    TRIM_MAX_LEVEL = 25
 
     def __init__(self):
         super().__init__()
@@ -204,6 +210,13 @@ class MainWindow(QMainWindow):
         self.update_throttle_mode_label()
         self.throttle_mode_shortcut = QShortcut(QKeySequence("Ctrl+B"), self)
         self.throttle_mode_shortcut.activated.connect(self.toggle_throttle_mode)
+
+        # Trim state. Positive elevator trim commands nose-up trim; positive
+        # aileron trim commands left-bank trim, matching the FC roll convention.
+        self.elevator_trim_level = 0
+        self.aileron_trim_level = 0
+        self._setup_trim_indicator()
+        self.update_trim_labels()
 
         # Airborne detection state. The detector uses fresh GPS telemetry,
         # pitot airspeed, and barometric altitude above a grounded baseline to
@@ -1819,6 +1832,149 @@ class MainWindow(QMainWindow):
                 self._handle_joystick_yaw_button(button, pressed)
             elif button == self.JOYSTICK_YAW_RIGHT_BUTTON:
                 self._handle_joystick_yaw_button(button, pressed)
+            elif pressed and button == self.JOYSTICK_ELEVATOR_TRIM_DOWN_BUTTON:
+                self._set_trim_level("elevator", -1, "elevatortrimup.mp3")
+            elif pressed and button == self.JOYSTICK_ELEVATOR_TRIM_UP_BUTTON:
+                self._set_trim_level("elevator", 1, "elevatortrimdown.mp3")
+            elif pressed and button == self.JOYSTICK_AILERON_TRIM_LEFT_BUTTON:
+                self._set_trim_level("aileron", 1, "ailerontrimright.mp3")
+            elif pressed and button == self.JOYSTICK_AILERON_TRIM_RIGHT_BUTTON:
+                self._set_trim_level("aileron", -1, "ailerontrimleft.mp3")
+
+    def _setup_trim_indicator(self) -> None:
+        """Create trim status labels beside the throttle mode indicator."""
+
+        layout = getattr(self.ui, "controlInputsLayout", None)
+        parent = getattr(self.ui, "controlSectionFrame", self)
+        if layout is None:
+            return
+
+        self.trimModeLayout = QVBoxLayout()
+        self.trimModeLayout.setSpacing(4)
+        self.trimModeLayout.setObjectName("trimModeLayout")
+        self.trimModeLayout.setContentsMargins(0, 8, 0, 0)
+
+        self.trimModeTitle = QLabel(parent)
+        self.trimModeTitle.setObjectName("trimModeTitle")
+        title_font = self.trimModeTitle.font()
+        title_font.setBold(True)
+        title_font.setUnderline(True)
+        self.trimModeTitle.setFont(title_font)
+        self.trimModeTitle.setText("Trim")
+        self.trimModeTitle.setAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        self.aileronTrimLabel = QLabel(parent)
+        self.aileronTrimLabel.setObjectName("aileronTrimLabel")
+        self.aileronTrimLabel.setAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        self.elevatorTrimLabel = QLabel(parent)
+        self.elevatorTrimLabel.setObjectName("elevatorTrimLabel")
+        self.elevatorTrimLabel.setAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        self.trimModeLayout.addWidget(self.trimModeTitle)
+        self.trimModeLayout.addWidget(self.aileronTrimLabel)
+        self.trimModeLayout.addWidget(self.elevatorTrimLabel)
+
+        spacer_index = None
+        for index in range(layout.count()):
+            item = layout.itemAt(index)
+            if item is not None and item.spacerItem() is not None:
+                spacer_index = index
+                break
+
+        if spacer_index is None:
+            layout.addLayout(self.trimModeLayout)
+        else:
+            layout.insertLayout(spacer_index, self.trimModeLayout)
+
+    @staticmethod
+    def _trim_label_text(
+        axis: str, level: int, positive_label: str, negative_label: str
+    ) -> str:
+        """Format a signed trim level for the command-page trim indicator."""
+
+        if level > 0:
+            return f"{axis}: +{level} {positive_label}"
+        if level < 0:
+            return f"{axis}: {level} {negative_label}"
+        return f"{axis}: 0 Neutral"
+
+    def update_trim_labels(self) -> None:
+        """Update the aileron and elevator trim level labels."""
+
+        if hasattr(self, "aileronTrimLabel"):
+            self.aileronTrimLabel.setText(
+                self._trim_label_text("Ail", self.aileron_trim_level, "Left", "Right")
+            )
+            self.aileronTrimLabel.setStyleSheet(
+                "color: rgb(0, 255, 0);"
+                if self.aileron_trim_level == 0
+                else "color: rgb(255, 165, 0);"
+            )
+        if hasattr(self, "elevatorTrimLabel"):
+            self.elevatorTrimLabel.setText(
+                self._trim_label_text("Elev", self.elevator_trim_level, "Up", "Down")
+            )
+            self.elevatorTrimLabel.setStyleSheet(
+                "color: rgb(0, 255, 0);"
+                if self.elevator_trim_level == 0
+                else "color: rgb(255, 165, 0);"
+            )
+
+    def _set_trim_level(self, axis: str, delta: int, sound_name: str) -> None:
+        """Apply one joystick trim step, refresh the UI, and play its cue."""
+
+        if axis == "elevator":
+            self.elevator_trim_level = max(
+                -self.TRIM_MAX_LEVEL,
+                min(self.TRIM_MAX_LEVEL, self.elevator_trim_level + delta),
+            )
+        elif axis == "aileron":
+            self.aileron_trim_level = max(
+                -self.TRIM_MAX_LEVEL,
+                min(self.TRIM_MAX_LEVEL, self.aileron_trim_level + delta),
+            )
+        else:
+            return
+
+        self.update_trim_labels()
+        self.play_sound_once(sound_name)
+
+    def _trim_level_to_channel_offset(self, level: int) -> int:
+        """Convert a signed trim level into a CRSF channel offset."""
+
+        channel_span = CRSF_CHANNEL_MAX - CRSF_CHANNEL_MIN
+        return int(round(level * self.TRIM_STEP_NORMALIZED * channel_span * 0.5))
+
+    def _apply_trim_to_channels(self, channels: list[int]) -> list[int]:
+        """Offset roll/pitch channels by the current trim levels."""
+
+        if len(channels) < 2:
+            channels.extend([CRSF_CHANNEL_CENTER] * (2 - len(channels)))
+
+        channels[0] = max(
+            CRSF_CHANNEL_MIN,
+            min(
+                CRSF_CHANNEL_MAX,
+                channels[0]
+                + self._trim_level_to_channel_offset(self.aileron_trim_level),
+            ),
+        )
+        channels[1] = max(
+            CRSF_CHANNEL_MIN,
+            min(
+                CRSF_CHANNEL_MAX,
+                channels[1]
+                + self._trim_level_to_channel_offset(self.elevator_trim_level),
+            ),
+        )
+        return channels
 
     def classify_rssi(self, rssi):
         if rssi >= -60:
@@ -2051,6 +2207,54 @@ class MainWindow(QMainWindow):
         player.mediaStatusChanged.connect(handle_status)
         player.play()
         self.sound_players[cache_key] = (player, output)
+
+    def play_sound_once(self, name: str):
+        """Play a sound on a throwaway player so repeated cues can overlap."""
+
+        if self._is_sound_muted(name):
+            return
+
+        if os.path.splitext(name)[1]:
+            file_path = os.path.join("audio", name)
+        else:
+            file_path = os.path.join("audio", f"{name}.mp3")
+
+        if not os.path.exists(file_path):
+            logging.warning("Sound file not found: %s", file_path)
+            return
+
+        player, output = QMediaPlayer(), QAudioOutput()
+        player.setAudioOutput(output)
+        player.setSource(QUrl.fromLocalFile(file_path))
+        output.setVolume(1.0)
+
+        players = getattr(self, "_overlapping_sound_players", None)
+        if players is None:
+            players = []
+            self._overlapping_sound_players = players
+        players.append((player, output))
+
+        def cleanup():
+            try:
+                player.mediaStatusChanged.disconnect(handle_status)
+            except Exception:
+                pass
+            try:
+                players.remove((player, output))
+            except ValueError:
+                pass
+            player.deleteLater()
+            output.deleteLater()
+
+        def handle_status(status):
+            if status in (
+                QMediaPlayer.MediaStatus.EndOfMedia,
+                QMediaPlayer.MediaStatus.InvalidMedia,
+            ):
+                QTimer.singleShot(200, cleanup)
+
+        player.mediaStatusChanged.connect(handle_status)
+        player.play()
 
     def play_sound_sequence(self, names, finished_callback=None):
         """Play a sequence of warning sounds in order.
@@ -2695,6 +2899,7 @@ class MainWindow(QMainWindow):
         if joy_roll is not None and joy_pitch is not None:
             channels[0] = JoystickRawHandler._map_to_crsf(joy_roll)
             channels[1] = JoystickRawHandler._map_to_crsf(joy_pitch)
+            self._apply_trim_to_channels(channels)
             self._apply_fbw_command_limits(channels)
         self._update_desired_fbw_attitude(channels, enabled=True)
 
@@ -2724,6 +2929,8 @@ class MainWindow(QMainWindow):
                 channels[1] = int(mapped_pitch)
             except Exception as e:
                 print(f"Error during transmission: {e}")
+
+        self._apply_trim_to_channels(channels)
 
         # CH3 carries manual throttle percent in Manual mode. In Auto Throttle
         # mode it carries the configured target airspeed from the configuration
