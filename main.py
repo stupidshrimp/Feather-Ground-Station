@@ -157,6 +157,7 @@ class MainWindow(QMainWindow):
     # flight_controller/Main.ino; CH3 auto-throttle setpoints are scaled by this
     # fixed range on both the GS and FC.
     AUTO_THROTTLE_SPEED_CHANNEL_MAX_MPH = 100.0
+    SINK_RATE_STALE_TIMEOUT_S = 0.5
 
     def __init__(self):
         super().__init__()
@@ -411,6 +412,8 @@ class MainWindow(QMainWindow):
         self.warning_cfg.setdefault("stall_alarm_enabled", True)
         self.warning_cfg.setdefault("altitude_alarm_enabled", True)
         self.warning_cfg.setdefault("bank_angle_alarm_enabled", True)
+        self.warning_cfg.setdefault("sink_rate_alarm_enabled", True)
+        self.warning_cfg.setdefault("sink_rate_threshold_fps", 10.0)
         self.airborne_cfg = self.config.setdefault("airborne", {})
         self.airborne_cfg.setdefault("takeoff_airspeed_multiplier", 1.2)
         self.airborne_cfg.setdefault("takeoff_altitude_ft", 15.0)
@@ -461,9 +464,11 @@ class MainWindow(QMainWindow):
         self.stall_alarm_playing = False
         self.altitude_alarm_playing = False
         self.roll_alarm_playing = False
+        self.sink_rate_alarm_playing = False
         self.stall_alarm_start_time = None
         self.altitude_alarm_start_time = None
         self.roll_alarm_start_time = None
+        self.sink_rate_alarm_start_time = None
         self.sound_players = {}
         self._muted_sounds = {}
         self.last_attitude_packet_time = None
@@ -673,6 +678,9 @@ class MainWindow(QMainWindow):
         self._gps_has_lock: Optional[bool] = None
         self.current_altitude = None
         self.current_airspeed = None
+        self.current_sink_rate_fps = None
+        self._last_sink_rate_altitude_ft = None
+        self._last_sink_rate_time = None
         self.last_airspeed_packet_time = None
         self.telemetry_state = {field: None for field in self._sortie_fields}
         self._update_battery_full_voltage()
@@ -1553,6 +1561,45 @@ class MainWindow(QMainWindow):
             return False
         return (now - self.last_airspeed_packet_time) <= max(0.0, timeout)
 
+    def _reset_sink_rate_estimate(self) -> None:
+        """Clear cached sink-rate state so stale samples cannot trigger alarms."""
+
+        self.current_sink_rate_fps = None
+        self._last_sink_rate_altitude_ft = None
+        self._last_sink_rate_time = None
+
+    def _update_sink_rate_from_altitude(
+        self, altitude_ft: Optional[float], timestamp: float
+    ) -> None:
+        """Update the descent-rate estimate from successive altitude samples."""
+
+        if altitude_ft is None:
+            self._reset_sink_rate_estimate()
+            return
+
+        previous_altitude = self._last_sink_rate_altitude_ft
+        previous_time = self._last_sink_rate_time
+        if previous_altitude is not None and previous_time is not None:
+            elapsed = timestamp - previous_time
+            if elapsed > 0:
+                vertical_speed_fps = (altitude_ft - previous_altitude) / elapsed
+                self.current_sink_rate_fps = max(0.0, -vertical_speed_fps)
+
+        self._last_sink_rate_altitude_ft = altitude_ft
+        self._last_sink_rate_time = timestamp
+
+    def _sink_rate_value_fresh(self, now: float) -> bool:
+        """Return whether the sink-rate estimate is based on recent GPS data."""
+
+        if self._last_sink_rate_time is None:
+            return False
+
+        if now - self._last_sink_rate_time <= self.SINK_RATE_STALE_TIMEOUT_S:
+            return True
+
+        self._reset_sink_rate_estimate()
+        return False
+
     def _current_altitude_agl_ft(self) -> Optional[float]:
         altitude = self._safe_float(self.current_altitude)
         if altitude is None or self.airborne_baseline_altitude_ft is None:
@@ -2040,6 +2087,11 @@ class MainWindow(QMainWindow):
         airspeed = self._safe_float(self.current_airspeed)
         altitude = self._safe_float(self.current_altitude)
         roll = self._safe_float(self.telemetry_roll)
+        sink_rate = (
+            self._safe_float(self.current_sink_rate_fps)
+            if self._sink_rate_value_fresh(now)
+            else None
+        )
         if airspeed is None or altitude is None or roll is None:
             return
 
@@ -2108,6 +2160,35 @@ class MainWindow(QMainWindow):
         else:
             self.roll_alarm_start_time = None
             self.roll_alarm_playing = False
+
+        # Sink-rate warning: excessive descent rate while airborne and not already
+        # satisfying the landing debounce.
+        sink_rate_enabled = self.warning_cfg.get("sink_rate_alarm_enabled", True)
+        sink_rate_threshold = self._safe_float(
+            self.warning_cfg.get("sink_rate_threshold_fps", 10.0), 10.0
+        )
+        if (
+            airborne_warnings_armed
+            and sink_rate_enabled
+            and sink_rate is not None
+            and sink_rate > sink_rate_threshold
+        ):
+            if self.sink_rate_alarm_start_time is None:
+                self.sink_rate_alarm_start_time = now
+            elif (
+                now - self.sink_rate_alarm_start_time > 1.0
+                and not self.sink_rate_alarm_playing
+            ):
+                self.sink_rate_alarm_playing = True
+                self.play_sound_sequence(
+                    ["sinkalarm", "sinkratewarning"],
+                    finished_callback=lambda: setattr(
+                        self, "sink_rate_alarm_playing", False
+                    ),
+                )
+        else:
+            self.sink_rate_alarm_start_time = None
+            self.sink_rate_alarm_playing = False
 
 
     def _set_crsf_raw_serial_debug(self, enabled: bool) -> None:
@@ -2316,6 +2397,10 @@ class MainWindow(QMainWindow):
             self.gps_lon = lon_value if lon_value is not None else lon
             self.current_altitude = alt
             self.current_airspeed = speed
+            if gps_has_fix:
+                self._update_sink_rate_from_altitude(self._safe_float(alt), now)
+            else:
+                self._update_sink_rate_from_altitude(None, now)
             try:
                 speed_value = float(speed)
             except (TypeError, ValueError):
@@ -2697,6 +2782,12 @@ class MainWindow(QMainWindow):
         )
         self.update_throttle_mode_label()
         self._update_throttle_indicator()
+        sound_name = (
+            "autothrottle"
+            if self.throttle_mode == "Auto Throttle"
+            else "manualthrottle"
+        )
+        self.play_sound(sound_name)
 
     def setup_configuration_page(self):
         """Create configuration page for selecting settings."""
