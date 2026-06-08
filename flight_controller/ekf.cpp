@@ -66,8 +66,7 @@ EKF::EKF(const Matrix& XInit, const Matrix& P, const Matrix& Q, const Matrix& R,
          bool (*bNonlinearUpdateX)(Matrix&, const Matrix&, const Matrix&),
          bool (*bNonlinearUpdateY)(Matrix&, const Matrix&, const Matrix&),
          bool (*bCalcJacobianF)(Matrix&, const Matrix&, const Matrix&),
-         bool (*bCalcJacobianH)(Matrix&, const Matrix&, const Matrix&),
-         bool (*bNormalizeState)(Matrix&))
+         bool (*bCalcJacobianH)(Matrix&, const Matrix&, const Matrix&))
 {
     /* Initialization:
      *  x(k=0|k=0)  = Expected value of x at time-0 (i.e. x(k=0)), typically set to zero.
@@ -85,7 +84,6 @@ EKF::EKF(const Matrix& XInit, const Matrix& P, const Matrix& Q, const Matrix& R,
     this->bNonlinearUpdateY = bNonlinearUpdateY;
     this->bCalcJacobianF = bCalcJacobianF;
     this->bCalcJacobianH = bCalcJacobianH;
-    this->bNormalizeState = bNormalizeState;
 }
 
 void EKF::vReset(const Matrix& XInit, const Matrix& P, const Matrix& Q, const Matrix& R)
@@ -93,11 +91,6 @@ void EKF::vReset(const Matrix& XInit, const Matrix& P, const Matrix& Q, const Ma
     this->X_Est = XInit;
     this->P = P;
     this->Q = Q;
-    this->R = R;
-}
-
-void EKF::vSetMeasurementNoise(const Matrix& R)
-{
     this->R = R;
 }
 
@@ -144,15 +137,10 @@ bool EKF::bUpdate(const Matrix& Y, const Matrix& U)
     if (!bNonlinearUpdateY(Y_Est, X_Est, U)) {
         return false;
     }
-    Err = Y - Y_Est;
-    X_Est = X_Est + (Gain * Err);
-    if (bNormalizeState && !bNormalizeState(X_Est)) {
-        return false;
-    }
+    X_Est = X_Est + (Gain * (Y - Y_Est));
 
-    /* P(k|k)  = (I - K*H)*P(k|k-1), implemented with the Joseph stabilized form. */
-    Matrix IminusKH = MatIdentity(SS_X_LEN) - (Gain*H);
-    P = IminusKH*P*(IminusKH.Transpose()) + Gain*R*(Gain.Transpose());
+    /* P(k|k)  = (I - K*H)*P(k|k-1)                                     ...{EKF_8} */
+    P = (MatIdentity(SS_X_LEN) - (Gain*H))*P;
     
     
     return true;
