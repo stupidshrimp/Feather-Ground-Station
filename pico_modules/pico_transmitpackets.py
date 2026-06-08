@@ -254,6 +254,17 @@ class CRSFPacketProcessor(QObject):
     def connect_serial(self):
         """Attempt to connect to the specified serial port in the worker thread."""
         try:
+            existing_serial = getattr(self, "serial", None)
+            if existing_serial is not None:
+                if existing_serial.isOpen():
+                    return
+                try:
+                    existing_serial.close()
+                    existing_serial.deleteLater()
+                except Exception:
+                    logger.debug("Failed to clean up stale serial port", exc_info=True)
+                self.serial = None
+
             self.serial = QSerialPort(self.serial_port)
             self.serial.setBaudRate(self.baudrate)
             self.serial.setDataBits(QSerialPort.Data8)
@@ -273,7 +284,10 @@ class CRSFPacketProcessor(QObject):
                     "Failed to open serial port: %s", self.serial.errorString()
                 )
                 self.error.emit(f"Failed to open serial port: {self.serial.errorString()}")
+                failed_serial = self.serial
                 self.serial = None
+                if failed_serial is not None:
+                    failed_serial.deleteLater()
         except Exception as e:
             logger.exception("Failed to open serial port")
             self.error.emit(f"Failed to open serial port: {e}")
