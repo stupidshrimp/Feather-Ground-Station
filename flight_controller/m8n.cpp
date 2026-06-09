@@ -108,14 +108,22 @@ void M8N::parseRMC(char *sentence) {
         return;
     }
 
-    // Check that data is valid (parts[2] should be "A").
+    // Check that data is valid (parts[2] should be "A"). RMC is the best
+    // source for speed/course, but some M8N configurations stream GGA without
+    // RMC. Do not make GPS lock depend on RMC when GGA already reports a fix.
     if (parts[2][0] == 'A' && parts[2][1] == '\0') {
         rmcDataActive = true;
-        latitude = convertToDecimal(parts[3], parts[4][0]);
-        longitude = convertToDecimal(parts[5], parts[6][0]);
+        const double parsedLatitude = convertToDecimal(parts[3], parts[4][0]);
+        const double parsedLongitude = convertToDecimal(parts[5], parts[6][0]);
+        if (parsedLatitude != 0.0 || parsedLongitude != 0.0) {
+            latitude = parsedLatitude;
+            longitude = parsedLongitude;
+        }
         speed = (parts[7][0] != '\0') ? atof(parts[7]) : 0.0;
         course = (parts[8][0] != '\0') ? atof(parts[8]) : 0.0;
-        has_valid_fix = rmcDataActive && fix_quality > 0 && satellites_in_use >= MIN_SATELLITES_FOR_FIX;
+        has_valid_fix = (latitude != 0.0 || longitude != 0.0) &&
+                        (fix_quality > 0 || satellites_in_use == 0) &&
+                        (satellites_in_use == 0 || satellites_in_use >= MIN_SATELLITES_FOR_FIX);
 
         // Process timestamp and date (parts[1] HHMMSS.SS, parts[9] DDMMYY).
         if (strlen(parts[1]) >= 6 && strlen(parts[9]) >= 6) {
@@ -146,7 +154,12 @@ void M8N::parseRMC(char *sentence) {
         }
     } else {
         rmcDataActive = false;
-        has_valid_fix = false;
+        // Some receivers can report an inactive/void RMC sentence while GGA
+        // still contains a valid fix. Keep the GGA-derived lock state instead
+        // of forcing telemetry coordinates back to zero between GGA updates.
+        has_valid_fix = (latitude != 0.0 || longitude != 0.0) &&
+                        fix_quality > 0 &&
+                        satellites_in_use >= MIN_SATELLITES_FOR_FIX;
     }
 }
 
@@ -157,11 +170,6 @@ void M8N::parseGGA(char *sentence) {
         return;
     }
 
-    // Altitude (in meters) is typically in parts[9]; convert to feet.
-    if (parts[9][0] != '\0') {
-        double altitude_m = atof(parts[9]);
-        altitude = altitude_m * 3.28084;
-    }
     if (parts[6][0] != '\0') {
         fix_quality = atoi(parts[6]);
     }
@@ -169,7 +177,27 @@ void M8N::parseGGA(char *sentence) {
         satellites_in_use = atoi(parts[7]);
     }
 
-    has_valid_fix = rmcDataActive && fix_quality > 0 && satellites_in_use >= MIN_SATELLITES_FOR_FIX;
+    // GGA carries the current fix coordinates. Parse them here as well as in
+    // RMC so the flight controller still sends non-zero GPS telemetry when a
+    // receiver is configured to output GGA but not RMC.
+    if (fix_quality > 0 && satellites_in_use >= MIN_SATELLITES_FOR_FIX) {
+        const double parsedLatitude = convertToDecimal(parts[2], parts[3][0]);
+        const double parsedLongitude = convertToDecimal(parts[4], parts[5][0]);
+        if (parsedLatitude != 0.0 || parsedLongitude != 0.0) {
+            latitude = parsedLatitude;
+            longitude = parsedLongitude;
+        }
+    }
+
+    // Altitude (in meters) is typically in parts[9]; convert to feet.
+    if (parts[9][0] != '\0') {
+        double altitude_m = atof(parts[9]);
+        altitude = altitude_m * 3.28084;
+    }
+
+    has_valid_fix = (latitude != 0.0 || longitude != 0.0) &&
+                    fix_quality > 0 &&
+                    satellites_in_use >= MIN_SATELLITES_FOR_FIX;
 }
 
 double M8N::convertToDecimal(const char *raw_value, char direction) {
