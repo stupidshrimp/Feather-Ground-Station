@@ -54,7 +54,10 @@ namespace serialReceiverLayer
 
       private:
         uint8_t _telemetryFrameScheduleCount;
-        uint8_t _telemetryFrameSchedule[crsfProtocol::CRSF_TELEMETRY_FRAME_SCHEDULE_MAX];
+        // Sized to hold the bandwidth-biased schedule built in begin(): up to
+        // CRSF_TELEMETRY_ATTITUDE_FRAME_RATIO attitude slots plus one slot per
+        // other enabled telemetry frame type.
+        uint8_t _telemetryFrameSchedule[crsfProtocol::CRSF_TELEMETRY_FRAME_SCHEDULE_MAX + CRSF_TELEMETRY_ATTITUDE_FRAME_RATIO];
         crsfProtocol::telemetryData_t _telemetryData;
 
         int16_t _decidegreeToRadians(int16_t decidegrees);
