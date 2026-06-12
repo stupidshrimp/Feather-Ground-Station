@@ -226,7 +226,20 @@ constexpr uint32_t EKF_PERIOD_US = SS_DT_MILIS * 1000UL;
 // while still recovering quickly if the loop ever hangs (wedged bus, math
 // assert, etc.). The IWDG runs off the independent LSI clock, so it fires even
 // if the main clock or loop is stuck.
+//
+// When control-debug serial output is compiled in (bench builds), the
+// once-per-second FCDBG line is long and a backpressured/slow USB serial write
+// can legitimately take much longer than a control iteration. Use a generous
+// timeout in that case so normal diagnostic logging cannot trip the watchdog,
+// and keep the tight flight-build timeout when logging is disabled (the konfig.h
+// default for flight). The diagnostic print also reloads the watchdog right
+// before it runs (see loop()), so the long write always starts with a full
+// window.
+#if FC_CONTROL_DEBUG_SERIAL_OUTPUT
+constexpr uint32_t WATCHDOG_TIMEOUT_US = 500000UL;
+#else
 constexpr uint32_t WATCHDOG_TIMEOUT_US = 100000UL;
+#endif
 constexpr uint16_t SERVO_UPDATE_HYSTERESIS_US = 3;
 constexpr uint32_t SERVO_FORCE_REFRESH_PERIOD_US = 100000UL;
 constexpr uint32_t RC_FAILSAFE_TIMEOUT_US = 250000UL;
@@ -2063,6 +2076,11 @@ void loop() {
   }
 
   serviceCrsfLink();
+  // The once-per-second FCDBG line is long; a backpressured USB serial write
+  // can take much longer than a control iteration. Reload right before it so the
+  // print always starts with a full watchdog window and normal diagnostic
+  // logging cannot trigger a false reset. (No-op cost when logging is disabled.)
+  IWatchdog.reload();
   maybePrintControlDebugStats();
 
 #if FC_TIMING_INSTRUMENTATION
