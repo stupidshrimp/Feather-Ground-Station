@@ -1342,12 +1342,3 @@ class CRSFPacketProcessor(QObject):
         finally:
             self.serial = None
 
-    def __del__(self):  # pragma: no cover - defensive finaliser
-        try:
-            QMetaObject.invokeMethod(self, "close_serial", Qt.QueuedConnection)
-            if hasattr(self, "_thread") and self._thread.isRunning():
-                self._thread.quit()
-                self._thread.wait()
-        except Exception:
-            pass
-

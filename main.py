@@ -15,9 +15,12 @@ import re
 # textures until the driver reset, leading to "device loss" errors and the
 # application's memory usage climbing until it crashed.  Force both Qt and the
 # embedded Chromium instance to fall back to software rendering so resource
-# allocation stays bounded.
-os.environ.setdefault("QT_OPENGL", "software")
-os.environ.setdefault("QTWEBENGINE_DISABLE_GPU", "1")
+# allocation stays bounded.  This Direct3D leak is Windows-specific, so leave
+# hardware acceleration enabled on other platforms to preserve UI/video
+# performance.
+if os.name == "nt":
+    os.environ.setdefault("QT_OPENGL", "software")
+    os.environ.setdefault("QTWEBENGINE_DISABLE_GPU", "1")
 
 logging.basicConfig(
     filename="debug.log",
@@ -502,6 +505,10 @@ class MainWindow(QMainWindow):
         self._last_error_time = 0
 
         # Warning system state
+        # Track which warning thresholds have already been reported as
+        # misconfigured so check_warnings (which runs many times per second)
+        # logs each problem once instead of flooding the log.
+        self._warned_warning_keys: set[str] = set()
         self.stall_alarm_playing = False
         self.altitude_alarm_playing = False
         self.roll_alarm_playing = False
@@ -712,6 +719,9 @@ class MainWindow(QMainWindow):
 
         # Global shortcut to immediately cut the throttle
         self.throttle_cut_shortcut = QShortcut(QKeySequence(Qt.Key_Space), self)
+        # Throttle-cut must work regardless of which widget holds focus (map web
+        # view, configuration fields, etc.), so register it application-wide.
+        self.throttle_cut_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self.throttle_cut_shortcut.activated.connect(self.cut_throttle)
 
         # Variables updated from telemetry packets
@@ -1415,7 +1425,7 @@ class MainWindow(QMainWindow):
             try:
                 self.sortie_file.flush()
             except OSError:
-                pass
+                logging.debug("Failed to flush sortie file on stop", exc_info=True)
             self.sortie_file.close()
 
         self.sortie_file = None
@@ -1507,7 +1517,9 @@ class MainWindow(QMainWindow):
             try:
                 self.joystick.close()
             except Exception:  # noqa: BLE001 - best effort cleanup
-                pass
+                logging.debug(
+                    "Failed to close joystick after worker error", exc_info=True
+                )
             self.joystick = None
             self.update_connection_status(self.control_status, False)
             # Losing the joystick removes roll/pitch authority (those channels
@@ -2510,6 +2522,31 @@ class MainWindow(QMainWindow):
             ):
                 self.link_stats_first_received_time = None
 
+    def _warning_threshold(self, key: str, default: float) -> float:
+        """Return a validated warning threshold, failing loud when misconfigured.
+
+        A missing or non-numeric threshold previously defaulted to ``0`` at the
+        call site, which silently disabled the corresponding alarm (e.g.
+        ``airspeed < 0`` is never true, so the stall alarm would never fire).
+        Validate the configured value instead and fall back to the documented
+        safe default, warning once so the operator can see the misconfiguration.
+        """
+
+        raw = self.warning_cfg.get(key)
+        value = self._safe_float(raw)
+        if value is None:
+            if key not in self._warned_warning_keys:
+                self._warned_warning_keys.add(key)
+                logging.warning(
+                    "Warning threshold '%s' is missing or invalid (%r); "
+                    "using safe default %s.",
+                    key,
+                    raw,
+                    default,
+                )
+            return float(default)
+        return value
+
     def check_warnings(self, now: Optional[float] = None):
         """Evaluate telemetry values against configured thresholds and play alarms."""
         if now is None:
@@ -2540,8 +2577,8 @@ class MainWindow(QMainWindow):
         if (
             airborne_warnings_armed
             and stall_enabled
-            and airspeed < self.warning_cfg.get("stall_airspeed", 0)
-            and altitude > self.warning_cfg.get("stall_altitude", 0)
+            and airspeed < self._warning_threshold("stall_airspeed", 10.0)
+            and altitude > self._warning_threshold("stall_altitude", 50.0)
         ):
             if self.stall_alarm_start_time is None:
                 self.stall_alarm_start_time = now
@@ -2561,8 +2598,8 @@ class MainWindow(QMainWindow):
         if (
             airborne_warnings_armed
             and altitude_enabled
-            and altitude < self.warning_cfg.get("altitude_alarm_altitude", 0)
-            and airspeed > self.warning_cfg.get("altitude_alarm_airspeed", 0)
+            and altitude < self._warning_threshold("altitude_alarm_altitude", 20.0)
+            and airspeed > self._warning_threshold("altitude_alarm_airspeed", 30.0)
         ):
             if self.altitude_alarm_start_time is None:
                 self.altitude_alarm_start_time = now
@@ -2586,7 +2623,7 @@ class MainWindow(QMainWindow):
         if (
             roll is not None
             and bank_enabled
-            and abs(roll) > self.warning_cfg.get("roll_angle", 0)
+            and abs(roll) > self._warning_threshold("roll_angle", 45.0)
         ):
             if self.roll_alarm_start_time is None:
                 self.roll_alarm_start_time = now
@@ -4343,7 +4380,7 @@ class MainWindow(QMainWindow):
             try:
                 self.joystick.close()
             except Exception:
-                pass
+                logging.debug("Failed to close joystick on reselect", exc_info=True)
             self.joystick = None
         if validate_port("joystick", port):
             try:
@@ -4406,7 +4443,9 @@ class MainWindow(QMainWindow):
                 thread.quit()
                 thread.wait()
             except Exception:
-                pass
+                logging.debug(
+                    "Failed to stop CRSF worker on reselect", exc_info=True
+                )
             self.crsf_processor = None
             self._link_diagnostics_active = False
         if validate_port("CRSF", port):
@@ -5090,30 +5129,44 @@ class MainWindow(QMainWindow):
             self.dragPos = event.globalPosition().toPoint()
 
     def cleanup(self):
-        """Clean up peripheral resources if they exist."""
+        """Clean up peripheral resources if they exist.
+
+        This is the single, deterministic teardown path; it is invoked from
+        ``closeEvent`` as well as the application's ``aboutToQuit`` hook, so it
+        must be idempotent.  The CRSF worker thread is stopped here rather than
+        relying on a ``__del__`` finaliser, whose timing during interpreter
+        shutdown is unreliable.
+        """
         self.stop_sortie_recording()
         self.stop_debug_monitoring()
+        processor = getattr(self, "crsf_processor", None)
+        if processor is not None:
+            thread = getattr(processor, "_thread", None)
+            QMetaObject.invokeMethod(
+                processor, "close_serial", Qt.BlockingQueuedConnection
+            )
+            if thread is not None:
+                thread.quit()
+                thread.wait()
+            self.crsf_processor = None
         if self.joystick:
             self.joystick.close()
             self.joystick = None
+
     def closeEvent(self, event):
         """
         Releases resources when the window is closed.
         """
         self.video_feed.shutdown()
-        if self.crsf_processor:
-            thread = self.crsf_processor._thread
-            QMetaObject.invokeMethod(
-                self.crsf_processor, "close_serial", Qt.BlockingQueuedConnection
-            )
-            thread.quit()
-            thread.wait()
         self.cleanup()
         super().closeEvent(event)
 
 
 if __name__ == "__main__":
-    QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL, True)
+    # Match the platform-gated software-rendering fallback configured above; the
+    # Direct3D device-loss leak this works around only affects Windows.
+    if os.name == "nt":
+        QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL, True)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
