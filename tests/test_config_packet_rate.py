@@ -51,3 +51,43 @@ def test_load_config_removes_legacy_ground_station_throttle_pid_keys(tmp_path):
     config = load_config(str(config_path))
 
     assert config["throttle"] == {"target_airspeed_mph": 22.0}
+
+
+def test_load_config_defaults_crsf_channel_stale_timeout(tmp_path):
+    config_path = tmp_path / "missing.json"
+
+    config = load_config(str(config_path))
+
+    assert config["crsf"]["channel_stale_timeout_s"] == 2.0
+
+
+def test_load_config_normalises_crsf_channel_stale_timeout(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        """{
+            \"crsf\": {
+                \"channel_stale_timeout_s\": -5
+            }
+        }""",
+        encoding="utf-8",
+    )
+
+    config = load_config(str(config_path))
+
+    assert config["crsf"]["channel_stale_timeout_s"] == 0.0
+
+
+def test_load_config_falls_back_on_invalid_crsf_channel_stale_timeout(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        """{
+            \"crsf\": {
+                \"channel_stale_timeout_s\": \"bad\"
+            }
+        }""",
+        encoding="utf-8",
+    )
+
+    config = load_config(str(config_path))
+
+    assert config["crsf"]["channel_stale_timeout_s"] == 2.0

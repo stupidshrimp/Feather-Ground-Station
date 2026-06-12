@@ -56,6 +56,11 @@ DEFAULT_CONFIG = {
         # GUI/control-input polling interval; the worker repeats the latest
         # channel state at packet_interval so UI load cannot lower RC frame rate.
         "channel_update_interval": 8,
+        # How long the CRSF worker will tolerate missing GUI channel refreshes
+        # before it stops replaying the last command.  Keep this comfortably
+        # above normal desktop/Qt scheduling hiccups; the FC still enforces its
+        # own 250 ms packet-age failsafe if serial packets actually stop.
+        "channel_stale_timeout_s": 2.0,
     },
     "throttle": {
         # Auto-throttle target sent to the FC on CH3 when Auto Throttle is active.
@@ -141,6 +146,12 @@ def load_config(path: str = "config.json"):
     crsf_config["packet_interval"] = normalise_packet_interval_ms(
         crsf_config.get("packet_interval")
     )
+    try:
+        crsf_config["channel_stale_timeout_s"] = max(
+            0.0, float(crsf_config.get("channel_stale_timeout_s", 2.0))
+        )
+    except (TypeError, ValueError):
+        crsf_config["channel_stale_timeout_s"] = 2.0
 
     # Remove legacy GS-side throttle PID/stale-timeout keys.  The FC owns these
     # safety-critical control-loop values in flight_controller/Main.ino.

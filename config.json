@@ -11,7 +11,8 @@
         "port": "Not connected",
         "baudrate": 921600,
         "packet_interval": 4,
-        "channel_update_interval": 8
+        "channel_update_interval": 8,
+        "channel_stale_timeout_s": 2.0
     },
     "fbw": {
         "max_roll_angle_deg": 45.0,
