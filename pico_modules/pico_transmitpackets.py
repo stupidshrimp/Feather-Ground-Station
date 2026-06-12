@@ -122,11 +122,12 @@ class CRSFPacketProcessor(QObject):
 
     # Maximum age of the last fresh channel update before the pacer stops
     # writing RC frames.  The GUI thread refreshes channels every few
-    # milliseconds; if it stalls, repeating the last channels would keep the
-    # FC's link alive with stale commands and defeat its packet-age failsafe.
-    # Stopping transmission lets the FC's own RC-fresh timeout (250 ms) engage.
-    # Kept well above normal GUI jitter so a momentary hiccup cannot false-trip.
-    RC_CHANNEL_STALE_TIMEOUT_S = 0.2
+    # milliseconds; if it stalls for multiple seconds, repeating the last
+    # channels would keep the FC's link alive with stale commands and defeat its
+    # packet-age failsafe.  Stopping transmission lets the FC's own RC-fresh
+    # timeout (250 ms) engage.  Keep this well above normal desktop/Qt
+    # scheduling hiccups so an idle but healthy connection cannot false-trip.
+    RC_CHANNEL_STALE_TIMEOUT_S = 2.0
 
     CRSF_ADDRESS_RADIO_TRANSMITTER = 0xEA
     CRSF_ADDRESS_CRSF_TRANSMITTER = 0xEE

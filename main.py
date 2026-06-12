@@ -626,6 +626,9 @@ class MainWindow(QMainWindow):
                     packet_interval_ms=self.crsf_cfg.get("packet_interval", 4),
                     transmission_enabled=True,
                     raw_serial_debug_enabled=self._debug_monitoring and self._debug_serial_all,
+                    channel_stale_timeout_s=self.crsf_cfg.get(
+                        "channel_stale_timeout_s", 2.0
+                    ),
                 )
                 self.crsf_processor.telemetry_ready.connect(
                     self.handle_telemetry_wrapper
@@ -4415,6 +4418,9 @@ class MainWindow(QMainWindow):
                     packet_interval_ms=self.crsf_cfg.get("packet_interval", 4),
                     transmission_enabled=was_transmitting,
                     raw_serial_debug_enabled=self._debug_monitoring and self._debug_serial_all,
+                    channel_stale_timeout_s=self.crsf_cfg.get(
+                        "channel_stale_timeout_s", 2.0
+                    ),
                 )
                 self.crsf_processor.telemetry_ready.connect(
                     self.handle_telemetry_wrapper
