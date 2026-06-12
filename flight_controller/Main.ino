@@ -1593,12 +1593,19 @@ void setup() {
   I2C_Alternate.begin();
   I2C_Alternate.setClock(400000);
   // Bound every blocking I2C transaction (IMU/barometer/airspeed all share this
-  // bus). Without a timeout, a stuck SDA/SCL line would block readSensor() in
-  // the 125 Hz loop forever and freeze the control surfaces. With a timeout the
-  // call returns, the loop keeps running, and the hardware watchdog below will
-  // reset the board if the bus stays wedged. reset_with_timeout=true also
-  // releases the peripheral so it can recover on the next transaction.
+  // bus) so a stuck SDA/SCL line cannot block readSensor() in the 125 Hz loop
+  // forever and freeze the control surfaces.
+  //
+  // The Arduino Wire timeout API (setWireTimeout) is only present on cores that
+  // advertise WIRE_HAS_TIMEOUT -- e.g. the AVR core. The STM32duino TwoWire used
+  // for flight builds does NOT expose it (its HAL bounds each transfer with its
+  // own internal timeout instead), so the call is guarded to keep the firmware
+  // compiling on both. On STM32duino the HAL timeout plus the hardware watchdog
+  // below provide the wedged-bus protection; where the Arduino API is available
+  // we additionally release the peripheral on timeout (reset_with_timeout=true).
+#if defined(WIRE_HAS_TIMEOUT)
   I2C_Alternate.setWireTimeout(25000 /* us */, true /* reset_with_timeout */);
+#endif
 
   // ----- Calibrate Barometer -----
   if (!barometer.begin()) {
